@@ -4,7 +4,57 @@ Working title. A program for modeling wire antennas in the browser: as easy to u
 
 ## Status
 
-The project is at its very beginning. The computing engine is ready and tested: it is a separate project, [nec2-rs](https://github.com/CyberDev-space/nec2-rs). There is no user interface yet. This page describes what it is meant to be.
+The computing engine is ready and tested: it is a separate project, [nec2-rs](https://github.com/CyberDev-space/nec2-rs), and runs in the browser as the WebAssembly package [nec2-wasm](https://www.npmjs.com/package/nec2-wasm).
+
+The program itself is in development. This works now:
+
+- **The model.** A table of wires as in MMANA: ends in metres, radius in millimetres, automatic segmentation. One source, written as `w1c`. Loads: a coil, a capacitor, a trap (a coil and a capacitor in parallel) with a quality factor, or a fixed R + jX. The material of the wires: no loss, copper, aluminium or a conductivity of your own. The ground: free space, perfect or real, with the height that MMANA calls "Add height".
+- **The results for one frequency.** Input impedance, SWR, gain, front-to-back ratio, elevation angle and azimuth of the maximum, efficiency, and two cuts of the pattern.
+- **A sweep over frequency.** SWR, R and X against frequency, the frequency of the lowest SWR and the band where the SWR stays below 2. Coils, capacitors and traps follow the frequency.
+- **A view of the antenna in space**, over the ground when there is one, with the source and the loads marked.
+- **Files.** Antenna files of MMANA (`.maa`) are opened and written. A model is saved in a JSON format of its own, which holds everything. The cards of NEC-2 are exported for other programs (`.nec`).
+- **Checks before the engine runs.** A model that cannot be computed gets a message in plain words: a wire on the ground or under it, a source beyond the end of its wire. A model that NEC-2 computes with less accuracy gets a warning: segments that are too long, or too short for their radius, a wire that touches a real ground.
+
+Not there yet: several sources, the optimizer, the pattern in space, the currents on the wires, a link that holds a model. The interface is in Ukrainian.
+
+### What a file of MMANA loses
+
+MMANA and this program do not model the same things, so a `.maa` file does not carry everything across. When a file is opened, the page lists what it left out:
+
+- a wire with a combined radius (a negative R, which points to a table of tubes of several diameters) gets a radius of 1 mm, so an antenna with such elements gives other results than in MMANA;
+- a wire with the radius 0, which MMANA uses as an insulator, is left out;
+- of several sources only the first is taken;
+- a load that is given as a polynomial (the type "S") is left out;
+- the automatic segmentation is the one of this program, equal segments of about a fortieth of a wavelength, where MMANA tapers them;
+- a source or a load at the joint of two wires (`w2b`) sits in the first segment of its wire, half a segment away from the joint. For a trap this moves the resonance by about one percent; more segments on the wires bring it back.
+
+A `.maa` file does not hold the parameters of a real ground or the range of the sweep. Save the model in the format of the program to keep them.
+
+## Checked against MMANA-GAL
+
+`DP20.MAA` is the dipole of the library that comes with MMANA-GAL: 10.34 m of wire for 14.05 MHz. The numbers of MMANA-GAL are those that the [tutorial of NH7O](https://www.tcpsas.com/sezioneIV/MMANA-GAL/docs/quickstart.pdf) prints for it.
+
+| | MMANA-GAL | This program |
+|---|---|---|
+| Free space, no loss | 71.5 Ω, SWR 1.43, 2.13 dBi | 71.7 − j2.3 Ω, SWR 1.44, 2.14 dBi |
+| Copper wire, 20 m over a real ground: the impedance over a perfect ground, which is how MMANA computes it | 78.6 Ω, SWR 1.61 | 78.1 − j9.6 Ω, SWR 1.60 |
+| The same over the real ground itself | — | 75.1 − j6.8 Ω, SWR 1.52 |
+| Elevation angle of the lobe over the real ground | 14.9° | 14.9° |
+
+The program reads the file of MMANA and gives its numbers where the two programs model the same thing. The third row is what the real ground changes: 3.5 Ω at this height of almost a wavelength, and much more for a low antenna, as the example below shows. The tests of the program hold these numbers.
+
+## Run it
+
+It needs a current Node (22 or newer).
+
+```sh
+npm install
+npm run dev      # the page at http://localhost:5173
+npm test         # the tests, the example through the engine among them
+npm run build    # the files of the site in dist/
+```
+
+The computation runs in a Web Worker, so the page stays responsive. The model is kept in the storage of the browser between visits; save it to a file to keep it for good.
 
 ## Why
 
@@ -44,10 +94,10 @@ EN
 |---|---|
 | User interface | TypeScript, React, Vite |
 | Engine | our own NEC-2 engine in Rust, [nec2-rs](https://github.com/CyberDev-space/nec2-rs) (MIT license), compiled to WebAssembly and hidden behind an interface of its own |
-| Parallelism | a pool of Web Workers: the points of a sweep and the variants of the optimizer are computed separately |
+| Parallelism | a Web Worker runs the engine; a pool of workers for the points of a sweep and the variants of the optimizer is planned |
 | 3D | three.js |
-| Charts | uPlot for sweeps, our own SVG for polar patterns and the Smith chart |
-| Format | our own JSON; import and export of `.maa` and `.nec`; a link that holds a model |
+| Charts | our own SVG: line charts for sweeps and polar plots for patterns; a Smith chart is planned |
+| Format | our own JSON; import and export of `.maa`; export of `.nec`; a link that holds a model is planned |
 | Tests | Vitest; reference results from nec2c |
 | License | MIT, like the engine |
 
