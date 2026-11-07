@@ -5,7 +5,7 @@ import { defaultModel, type Model } from "./model";
 const loaded: Model = {
   ...defaultModel,
   name: "Вертикал із котушкою",
-  source: { wire: 0, place: "b", offset: 1 },
+  sources: [{ at: { wire: 0, place: "b", offset: 1 }, phase: 0, voltage: 1 }],
   loads: [
     { kind: "lc", at: { wire: 0, place: "c", offset: -2 }, inductance: 12.5, capacitance: 0, q: 300 },
     { kind: "rx", at: { wire: 0, place: "e" }, resistance: 50, reactance: -7 },
@@ -36,9 +36,9 @@ describe("a model in the store or in a file of the program", () => {
       { ...defaultModel, wires: null },
       { ...defaultModel, wires: [{ ...defaultModel.wires[0], x1: "0" }] },
       { ...defaultModel, wires: [{ ...defaultModel.wires[0], radius: null }] },
-      { ...defaultModel, source: { wire: -1, place: "c" } },
-      { ...defaultModel, source: { wire: 0, place: "x" } },
-      { ...defaultModel, source: { wire: 0, place: "c", offset: 1.5 } },
+      { ...defaultModel, sources: [{ at: { wire: -1, place: "c" }, phase: 0, voltage: 1 }] },
+      { ...defaultModel, sources: [{ at: { wire: 0, place: "x" }, phase: 0, voltage: 1 }] },
+      { ...defaultModel, sources: [{ at: { wire: 0, place: "c", offset: 1.5 }, phase: 0, voltage: 1 }] },
       { ...defaultModel, loads: [{ kind: "lc", at: { wire: 0, place: "c" }, inductance: 1 }] },
       { ...defaultModel, loads: [{ kind: "coil", at: { wire: 0, place: "c" } }] },
       { ...defaultModel, frequency: "14" },
@@ -76,5 +76,33 @@ describe("the text of a file", () => {
     expect(fileName(loaded, "maa")).toBe("Вертикал із котушкою.maa");
     expect(fileName({ ...loaded, name: ' 40/20 m: "trap" <v2>? ' }, "json")).toBe("40 20 m trap v2.json");
     expect(fileName({ ...loaded, name: " / " }, "nec")).toBe("antenna.nec");
+  });
+});
+
+describe("the sources of a stored model", () => {
+  it("keep their phases and voltages", () => {
+    const array: Model = {
+      ...defaultModel,
+      wires: [defaultModel.wires[0], { ...defaultModel.wires[0], x1: -2.6, x2: -2.6 }],
+      sources: [
+        { at: { wire: 0, place: "c" }, phase: 0, voltage: 0.5 },
+        { at: { wire: 1, place: "c" }, phase: 135, voltage: 0.5 },
+      ],
+    };
+    expect(openModel(saveModel(array), defaultModel)).toEqual({ model: array, notes: [] });
+  });
+
+  it("come from the one source of the first version of the format", () => {
+    const { sources, ...rest } = defaultModel;
+    expect(sources).toHaveLength(1);
+    const old = { ...rest, source: { wire: 0, place: "e", offset: 2 } };
+    expect(restoreModel(old)!.sources).toEqual([{ at: { wire: 0, place: "e", offset: 2 }, phase: 0, voltage: 1 }]);
+    const file = JSON.stringify({ format: "antenna-modeler", version: 1, model: old });
+    expect(openModel(file, defaultModel).model.sources).toHaveLength(1);
+  });
+
+  it("are refused when there are none or one is damaged", () => {
+    expect(restoreModel({ ...defaultModel, sources: [] })).toBeNull();
+    expect(restoreModel({ ...defaultModel, sources: [{ at: { wire: 0, place: "c" }, phase: "0", voltage: 1 }] })).toBeNull();
   });
 });

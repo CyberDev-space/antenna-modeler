@@ -1,6 +1,6 @@
 import type { Pattern, Solution } from "nec2-wasm";
 import { describe, expect, it } from "vitest";
-import { band, summarize, swr, sweepPoints, type SweepPoint } from "./analysis";
+import { band, bands, ports, summarize, swr, sweepPoints, type SweepPoint } from "./analysis";
 
 /** A pattern on a grid of 30 degrees with a gain that the test chooses. */
 function pattern(gain: (theta: number, phi: number) => number, thetaMax: number): Pattern {
@@ -76,6 +76,20 @@ describe("a sweep", () => {
     expect(found.open).toEqual([false, false]);
   });
 
+  it("finds every band, as an antenna for several bands has", () => {
+    // SWR 3, 1.5, 3, 3, 1.5, 1 at 14.0 to 14.5 MHz.
+    const two = [150, 75, 150, 150, 75, 50].map((r, i) => point(14 + i / 10, r));
+    const found = bands(two, 2);
+    expect(found).toHaveLength(2);
+    expect(found[0].edges[0]).toBeCloseTo(14.0 + 0.1 * (1 / 1.5), 10);
+    expect(found[0].edges[1]).toBeCloseTo(14.1 + 0.1 * (0.5 / 1.5), 10);
+    expect(found[0].open).toEqual([false, false]);
+    expect(found[1].edges[1]).toBe(14.5);
+    expect(found[1].open).toEqual([false, true]);
+    expect(bands(two.slice(0, 1), 2)).toEqual([]);
+    expect(bands(points.slice(2, 5), 2)).toEqual([{ edges: [14.2, 14.4], open: [true, true] }]);
+  });
+
   it("says when the band reaches the end of the sweep or does not exist", () => {
     const wide = band(points.slice(2, 5), 2);
     expect(wide.edges).toEqual([14.2, 14.4]);
@@ -126,5 +140,35 @@ describe("the summary of a solution", () => {
     const up = summarize(solution(pattern((theta) => (theta === 0 ? 5 : 0), 180), [50, 0]), 50);
     expect([up.gain, up.elevation, up.frontToBack]).toEqual([5, 90, null]);
     expect(up.elevationCut.angle).toEqual([0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]);
+  });
+});
+
+describe("the sources of a solution", () => {
+  const record = (segment: number, impedance: [number, number], power: number): Solution["sources"][number] =>
+    ({ tag: 1, segment, voltage: [0.5, 0], current: [0, 0], impedance, admittance: [0, 0], power }) as Solution["sources"][number];
+  // A source on a joint (segments 5 and 6), a source in segment 12, and a source without voltage in segment 20.
+  const solved: Solution = {
+    ...solution(pattern(() => 0, 90), [0, 0]),
+    sources: [record(12, [30, -10], 0.004), record(5, [20, 5], 0.002), record(6, [22, 4], 0.0021)],
+  };
+  const feeds = [[5, 6], [12], [20]];
+
+  it("are grouped as the model has them", () => {
+    const found = ports(solved, 50, feeds);
+    expect(found[0].impedance).toEqual([42, 9]);
+    expect(found[0].power).toBeCloseTo(0.0041, 12);
+    expect(found[0].swr).toBeCloseTo(swr([42, 9], 50), 12);
+    expect(found[1]).toEqual({ impedance: [30, -10], swr: swr([30, -10], 50), power: 0.004 });
+    expect(found[2]).toEqual({ impedance: null, swr: null, power: 0 });
+  });
+
+  it("give the screen the first source with a voltage, and the sweep the one that is asked for", () => {
+    const summary = summarize(solved, 50, [[20], [12], [5, 6]]);
+    expect(summary.ports).toHaveLength(3);
+    expect(summary.impedance).toEqual([30, -10]);
+    const sweep = [{ ...solved, frequency: 14 }];
+    expect(sweepPoints(sweep, 50, feeds)[0].impedance).toEqual([42, 9]);
+    expect(sweepPoints(sweep, 50, feeds, 1)[0].impedance).toEqual([30, -10]);
+    expect(() => sweepPoints(sweep, 50, feeds, 2)).toThrow(/no voltage/);
   });
 });

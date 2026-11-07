@@ -3,13 +3,14 @@ import { summarize, type Summary } from "./analysis";
 import { LoadTable } from "./components/LoadTable";
 import { Results } from "./components/Results";
 import { Settings } from "./components/Settings";
+import { SourceTable } from "./components/SourceTable";
 import { SweepPanel } from "./components/SweepPanel";
 import { WireTable } from "./components/WireTable";
 import { buildDeck, exportDeck } from "./deck";
 import { solve, type Failure } from "./engine";
 import { download, encodeAnsi, fileName, openModel, readText, restoreModel, saveModel } from "./files";
 import { exportMaa } from "./maa";
-import { defaultModel, type Model } from "./model";
+import { defaultModel, formatPulse, resultKey, type Model } from "./model";
 
 // The view in space brings a large library: it is loaded after the page.
 const View3D = lazy(() => import("./components/View3D").then((module) => ({ default: module.View3D })));
@@ -40,6 +41,8 @@ interface Solved {
   reference: number;
   overGround: boolean;
   lossy: boolean;
+  /** The places of the sources, to name them. */
+  sources: string[];
   summary: Summary;
   warnings: string[];
   report: string;
@@ -69,6 +72,7 @@ export function App() {
 
   const deck = useMemo(() => buildDeck(model), [model]);
   const modelText = JSON.stringify(model);
+  const key = resultKey(model);
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, modelText);
@@ -100,31 +104,32 @@ export function App() {
     try {
       const output = await solve(deck.text);
       if (output.error) {
-        setFailure({ model: modelText, lines: ["Ядро зупинило розрахунок:", output.error] });
+        setFailure({ model: key, lines: ["Ядро зупинило розрахунок:", output.error] });
         setSolved(null);
         return;
       }
       setSolved({
-        model: modelText,
+        model: key,
         reference: model.reference,
         overGround: model.ground.kind !== "free",
         lossy: model.wireConductivity > 0 || model.loads.length > 0,
-        summary: summarize(output.jobs[0].solutions[0], model.reference),
+        sources: model.sources.map((source) => formatPulse(source.at)),
+        summary: summarize(output.jobs[0].solutions[0], model.reference, deck.feeds),
         warnings: output.warnings,
         report: output.report,
         milliseconds: performance.now() - started,
       });
     } catch (error) {
-      setFailure({ model: modelText, lines: ["Розрахунок не вдався:", String(error)] });
+      setFailure({ model: key, lines: ["Розрахунок не вдався:", String(error)] });
       setSolved(null);
     } finally {
       setRunning(false);
     }
   }
 
-  const stale = solved !== null && solved.model !== modelText;
+  const stale = solved !== null && solved.model !== key;
   // A failure says nothing about a model that was changed since.
-  const problems = deck.errors.length > 0 ? deck.errors : failure?.model === modelText ? failure.lines : null;
+  const problems = deck.errors.length > 0 ? deck.errors : failure?.model === key ? failure.lines : null;
 
   return (
     <main>
@@ -175,6 +180,8 @@ export function App() {
 
         <h2>Дроти</h2>
         <WireTable wires={model.wires} segments={deck.segments} onChange={(wires) => setModel({ ...model, wires })} />
+        <h2>Джерела</h2>
+        <SourceTable sources={model.sources} onChange={(sources) => setModel({ ...model, sources })} />
         <h2>Навантаження</h2>
         <LoadTable loads={model.loads} onChange={(loads) => setModel({ ...model, loads })} />
         <Settings model={model} onChange={setModel} />
@@ -195,7 +202,7 @@ export function App() {
       <section className="view" aria-label="Вигляд">
         <h2>Вигляд</h2>
         <Suspense fallback={<p className="note">Завантажую…</p>}>
-          <View3D model={model} segments={deck.segments} />
+          <View3D model={model} marks={deck.marks} />
         </Suspense>
       </section>
       </div>
@@ -213,7 +220,13 @@ export function App() {
         {solved && (
           <div className={stale ? "stale" : undefined}>
             {stale && <p className="note">Модель змінено: ці результати належать попередній.</p>}
-            <Results summary={solved.summary} reference={solved.reference} overGround={solved.overGround} lossy={solved.lossy} />
+            <Results
+              summary={solved.summary}
+              sources={solved.sources}
+              reference={solved.reference}
+              overGround={solved.overGround}
+              lossy={solved.lossy}
+            />
             {solved.warnings.length > 0 && (
               <ul className="messages warnings">
                 {solved.warnings.map((warning) => (

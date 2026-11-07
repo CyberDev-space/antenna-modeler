@@ -1,41 +1,26 @@
-import { placedWires } from "./geometry";
+import { placedWires, type Marks, type Point } from "./geometry";
 import { loadImpedance } from "./loads";
-import { pulseSegment, type Load, type Model, type Wire } from "./model";
-
-/** Segments per wavelength that the automatic segmentation aims at. */
-const SEGMENTS_PER_WAVELENGTH = 40;
+import { pulseSegment, type Load, type Model } from "./model";
+import { joinEnds, layout, segmentCount, wavelength, wireLength } from "./segmentation";
 
 /** Steps of the pattern in degrees. Over a ground only the upper half is computed, on a finer grid. */
 export const PHI_STEP = 5;
 export const THETA_STEP_FREE = 5;
 export const THETA_STEP_GROUND = 2;
 
-/** Wavelength in metres at a frequency in MHz. */
-export function wavelength(frequency: number): number {
-  return 299.792458 / frequency;
-}
-
-export function wireLength(wire: Wire): number {
-  return Math.hypot(wire.x2 - wire.x1, wire.y2 - wire.y1, wire.z2 - wire.z1);
-}
-
-/**
- * The number of segments of a wire: its own, or about forty for a wavelength.
- * A wire with the source or a load at its centre gets an odd number, so that
- * the centre is the middle of a segment.
- */
-export function segmentCount(wire: Wire, frequency: number, centred: boolean): number {
-  if (wire.segments > 0) return Math.round(wire.segments);
-  let count = Math.max(1, Math.ceil((wireLength(wire) * SEGMENTS_PER_WAVELENGTH) / wavelength(frequency)));
-  if (centred && count % 2 === 0) count += 1;
-  return count;
-}
-
 export interface Deck {
   /** The cards for the engine. */
   text: string;
   /** The number of segments of every wire. */
   segments: number[];
+  /** Where the sources and the loads sit; `null` when the model cannot be divided into segments. */
+  marks: Marks | null;
+  /**
+   * For every source the segments that it sits in, numbered over the whole
+   * structure as the engine reports its sources; empty when the model cannot
+   * be computed. A source on the joint of two wires sits in two.
+   */
+  feeds: number[][];
   /** Why the model cannot be computed, in the language of the user; empty if it can. */
   errors: string[];
   /** What the user should know about the model. */
@@ -53,13 +38,47 @@ export const MAX_SEGMENTS = 3000;
 /** The most points that a sweep may have. */
 export const MAX_SWEEP_POINTS = 201;
 
+/**
+ * The joints where two wires of different radii go on in one line, as the
+ * tubes of a tapered Yagi element, by the numbers of the wires from 1. NEC-2
+ * is known to be inaccurate at such steps. The ends of joined wires must be
+ * exactly one point, as `joinEnds` makes them.
+ */
+function radiusSteps(wires: Model["wires"]): [number, number][] {
+  const ends = (wire: Model["wires"][number]): Point[] => [
+    [wire.x1, wire.y1, wire.z1],
+    [wire.x2, wire.y2, wire.z2],
+  ];
+  const direction = (wire: Model["wires"][number]): Point => {
+    const length = wireLength(wire);
+    return [(wire.x2 - wire.x1) / length, (wire.y2 - wire.y1) / length, (wire.z2 - wire.z1) / length];
+  };
+  const steps: [number, number][] = [];
+  wires.forEach((a, i) => {
+    wires.forEach((b, j) => {
+      if (j <= i || Math.abs(a.radius - b.radius) <= 0.01 * Math.max(a.radius, b.radius)) return;
+      const joined = ends(a).some((p) => ends(b).some((q) => p[0] === q[0] && p[1] === q[1] && p[2] === q[2]));
+      if (!joined) return;
+      const [u, v] = [direction(a), direction(b)];
+      if (Math.abs(Math.abs(u[0] * v[0] + u[1] * v[1] + u[2] * v[2]) - 1) < 1e-6) steps.push([i + 1, j + 1]);
+    });
+  });
+  return steps;
+}
+
 /** What the cards of the structure are made of. */
 interface Structure {
   /** The cards of the wires, the ground and the source. */
   cards: string[];
   segments: number[];
-  /** The loads that hold something, each with the tag and the segment that it sits in. */
-  loads: { load: Load; tag: number; segment: number }[];
+  /**
+   * The loads that hold something, each with the tag and the segment that it
+   * sits in and the part of it that sits there: a load on the joint of two
+   * wires has a half in each.
+   */
+  loads: { load: Load; tag: number; segment: number; share: number }[];
+  marks: Marks | null;
+  feeds: number[][];
   errors: string[];
   warnings: string[];
 }
@@ -69,29 +88,39 @@ interface Structure {
  * chosen for the frequency of the model, also when a sweep follows.
  */
 function structure(model: Model): Structure {
-  const { source, loads, frequency, ground } = model;
-  const wires = placedWires(model);
+  const { sources, loads, frequency, ground } = model;
+  const placed = placedWires(model);
   const overGround = ground.kind !== "free";
   const touches = (z: number): boolean => overGround && Math.abs(z) < ON_GROUND;
   const errors: string[] = [];
   const warnings: string[] = [];
-  const result = (segments: number[] = [], cards: string[] = [], held: Structure["loads"] = []): Structure => ({
-    cards,
-    segments,
-    loads: held,
-    errors,
-    warnings,
-  });
+  const result = (
+    segments: number[] = [],
+    cards: string[] = [],
+    held: Structure["loads"] = [],
+    marks: Marks | null = null,
+    feeds: number[][] = [],
+  ): Structure => ({ cards, segments, loads: held, marks, feeds, errors, warnings });
+  // With one source the messages do not number it.
+  const several = sources.length > 1;
+  const sourceName = (index: number): string => (several ? `джерело ${index + 1}` : "джерело");
+  const sourceTitle = (index: number): string => (several ? `Джерело ${index + 1}` : "Джерело");
 
   if (!(frequency > 0)) errors.push("Частота має бути більшою за нуль.");
-  if (wires.length === 0) errors.push("У моделі немає жодного дроту.");
-  if (source.wire >= wires.length) errors.push(`Джерело стоїть на дроті ${source.wire + 1}, якого немає.`);
-  wires.forEach((wire, index) => {
+  if (placed.length === 0) errors.push("У моделі немає жодного дроту.");
+  if (sources.length === 0) errors.push("У моделі немає джерела.");
+  sources.forEach(({ at }, index) => {
+    if (at.wire >= placed.length) errors.push(`${sourceTitle(index)} стоїть на дроті ${at.wire + 1}, якого немає.`);
+  });
+  if (sources.length > 0 && sources.every((source) => source.voltage === 0)) {
+    errors.push(several ? "Напруга всіх джерел дорівнює нулю: антену нічим не збуджено." : "Напруга джерела дорівнює нулю: антену нічим не збуджено.");
+  }
+  placed.forEach((wire, index) => {
     if (!(wireLength(wire) > 0)) errors.push(`Дріт ${index + 1} не має довжини.`);
     if (!(wire.radius > 0)) errors.push(`Радіус дроту ${index + 1} має бути більшим за нуль.`);
     if (overGround && (wire.z1 < -ON_GROUND || wire.z2 < -ON_GROUND)) errors.push(`Дріт ${index + 1} заходить під землю.`);
   });
-  const lying = wires.flatMap((wire, index) => (touches(wire.z1) && touches(wire.z2) ? [index + 1] : []));
+  const lying = placed.flatMap((wire, index) => (touches(wire.z1) && touches(wire.z2) ? [index + 1] : []));
   if (lying.length > 0) {
     const which = lying.length === 1 ? `Дріт ${lying[0]} лежить` : `Дроти ${lying.join(", ")} лежать`;
     errors.push(`${which} на землі. Підніміть антену: поле «Додати висоту».`);
@@ -100,30 +129,38 @@ function structure(model: Model): Structure {
     errors.push("Реальній землі потрібна діелектрична проникність або провідність.");
   }
   loads.forEach((load, index) => {
-    if (load.at.wire >= wires.length) errors.push(`Навантаження ${index + 1} стоїть на дроті ${load.at.wire + 1}, якого немає.`);
+    if (load.at.wire >= placed.length) errors.push(`Навантаження ${index + 1} стоїть на дроті ${load.at.wire + 1}, якого немає.`);
     if (load.kind === "lc" && (load.inductance < 0 || load.capacitance < 0 || load.q < 0)) {
       errors.push(`Навантаження ${index + 1}: L, C і Q не можуть бути від'ємними.`);
     }
   });
   if (model.wireConductivity < 0) errors.push("Провідність дротів не може бути від'ємною.");
   if (errors.length > 0) return result();
+  const wires = joinEnds(placed);
+  const steps = radiusSteps(wires);
+  if (steps.length > 0) {
+    const more = steps.length > 1 ? ` і ще ${steps.length - 1}` : "";
+    warnings.push(
+      `Труби різного діаметра стикуються на одній осі (дроти ${steps[0][0]} і ${steps[0][1]}${more}). NEC-2 на таких стиках неточний: резонанс елемента може зсунутися на відсотки. Поправки Лісона, якою це виправляє EZNEC, тут ще немає.`,
+    );
+  }
 
-  // The source and the loads, with the words that the messages use for them.
+  // The sources and the loads, with the words that the messages use for them.
   const pulses = [
-    { at: source, name: "джерело", title: "Джерело" },
+    ...sources.map(({ at }, index) => ({ at, name: sourceName(index), title: sourceTitle(index) })),
     ...loads.map((load, index) => ({ at: load.at, name: `навантаження ${index + 1}`, title: `Навантаження ${index + 1}` })),
   ];
   const lambda = wavelength(frequency);
-  const segments = wires.map((wire, index) =>
+  // The regular segments of every wire. The segments that the engine gets can be more: a load has short ones around it.
+  const counts = wires.map((wire, index) =>
     segmentCount(wire, frequency, pulses.some(({ at }) => at.wire === index && at.place === "c")),
   );
-  const total = segments.reduce((sum, count) => sum + count, 0);
-  if (total > MAX_SEGMENTS) {
-    errors.push(`Модель має ${total} сегм., а програма рахує щонайбільше ${MAX_SEGMENTS}.`);
-    return result(segments);
+  if (counts.reduce((sum, count) => sum + count, 0) > MAX_SEGMENTS) {
+    errors.push(`Модель має ${counts.reduce((sum, count) => sum + count, 0)} сегм., а програма рахує щонайбільше ${MAX_SEGMENTS}.`);
+    return result(counts);
   }
   wires.forEach((wire, index) => {
-    const length = wireLength(wire) / segments[index];
+    const length = wireLength(wire) / counts[index];
     if (length > lambda / 10) {
       warnings.push(`Сегменти дроту ${index + 1} довші за десяту частину хвилі: результат буде неточним.`);
     }
@@ -138,40 +175,106 @@ function structure(model: Model): Structure {
       }
     });
   }
-
-  // The segment that the source and every load sit in.
-  const seats = pulses.map(({ at, name, title }) => {
-    const count = segments[at.wire];
+  for (const { at, name, title } of pulses) {
+    const count = counts[at.wire];
     const segment = pulseSegment(at, count);
     if (segment < 1 || segment > count) {
       errors.push(`${title} зсунуте за межі дроту ${at.wire + 1}: він має ${count} сегм.`);
     } else if (at.place === "c" && count % 2 === 0) {
       warnings.push(`Дріт ${at.wire + 1} має парну кількість сегментів: ${name} стоїть не точно в центрі.`);
     }
-    return segment;
+  }
+  if (errors.length > 0) return result(counts);
+
+  // The segments of the wires, and those that the sources and the loads sit in. Only a load asks for a short one.
+  const { pieces, seats } = layout(
+    wires,
+    counts,
+    pulses.map(({ at }, index) => ({ at, short: index >= sources.length })),
+    lambda,
+    (z) => ground.kind === "perfect" && touches(z),
+  );
+  const segments = pieces.map((ofWire) => ofWire.length);
+  const total = segments.reduce((sum, count) => sum + count, 0);
+  if (total > MAX_SEGMENTS) {
+    errors.push(`Модель має ${total} сегм., а програма рахує щонайбільше ${MAX_SEGMENTS}.`);
+    return result(segments);
+  }
+  // The engine keeps one source in a segment: a second one there would replace the first without a word.
+  const taken = new Map<string, number>();
+  const clashes = new Set<string>();
+  seats.slice(0, sources.length).forEach((ofSource, index) => {
+    for (const seat of ofSource) {
+      const key = `${seat.wire} ${seat.segment}`;
+      const other = taken.get(key);
+      if (other !== undefined && other !== index) clashes.add(`Джерела ${other + 1} і ${index + 1} стоять в одному сегменті дроту ${seat.wire + 1}.`);
+      taken.set(key, index);
+    }
   });
-  if (errors.length > 0) return result(segments);
+  if (clashes.size > 0) {
+    errors.push(...clashes);
+    return result(segments);
+  }
   const seated = loads.flatMap((load, index) => {
     if (load.kind === "lc" && load.inductance === 0 && load.capacitance === 0) {
       warnings.push(`Навантаження ${index + 1} не має ні котушки, ні конденсатора: воно нічого не змінює.`);
       return [];
     }
-    return [{ load, tag: load.at.wire + 1, segment: seats[index + 1] }];
+    const ofLoad = seats[sources.length + index];
+    return ofLoad.map((seat) => ({ load, tag: seat.wire + 1, segment: seat.segment, share: 1 / ofLoad.length }));
   });
 
-  // A wire end on the ground is joined to its image.
+  // A point of a wire at a distance from its beginning. A wire end on the ground is joined to its image.
+  const along = (index: number, distance: number): Point => {
+    const wire = wires[index];
+    const part = distance / wireLength(wire);
+    const z = wire.z1 + (wire.z2 - wire.z1) * part;
+    return [wire.x1 + (wire.x2 - wire.x1) * part, wire.y1 + (wire.y2 - wire.y1) * part, touches(z) ? 0 : z];
+  };
   const onGround = wires.some((wire) => touches(wire.z1) || touches(wire.z2));
   const cards = [`CM ${model.name.replace(/\s+/g, " ").trim() || "antenna-modeler"}`, "CE"];
   wires.forEach((wire, index) => {
-    const height = (z: number): number => (touches(z) ? 0 : z);
-    const ends = [wire.x1, wire.y1, height(wire.z1), wire.x2, wire.y2, height(wire.z2)].map(number).join(" ");
-    cards.push(`GW ${index + 1} ${segments[index]} ${ends} ${number(wire.radius)}`);
+    // Segments of one length in a row make one card; the cards of a wire share its tag.
+    const lengths = pieces[index];
+    let [first, from] = [0, 0];
+    while (first < lengths.length) {
+      let last = first;
+      while (last + 1 < lengths.length && Math.abs(lengths[last + 1] - lengths[first]) < 1e-9 * lengths[first]) last++;
+      const run = lengths.slice(first, last + 1).reduce((sum, length) => sum + length, 0);
+      const to = last + 1 === lengths.length ? wireLength(wire) : from + run;
+      const ends = [...along(index, from), ...along(index, to)].map(number).join(" ");
+      cards.push(`GW ${index + 1} ${last - first + 1} ${ends} ${number(wire.radius)}`);
+      [first, from] = [last + 1, to];
+    }
   });
   cards.push(`GE ${onGround ? 1 : 0}`);
   if (ground.kind === "perfect") cards.push("GN 1");
   if (ground.kind === "real") cards.push(`GN 2 0 0 0 ${number(ground.permittivity)} ${number(ground.conductivity)}`);
-  cards.push(`EX 0 ${source.wire + 1} ${seats[0]} 0 1 0`);
-  return result(segments, cards, seated);
+  // A source on the joint of two wires is two sources in series, half the voltage each.
+  // A source without voltage is a plain segment, and the engine gets no card for it.
+  sources.forEach((source, index) => {
+    if (source.voltage === 0) return;
+    const radians = (source.phase * Math.PI) / 180;
+    const tidy = (value: number): number => (Math.abs(value) < 1e-12 * Math.abs(source.voltage) ? 0 : value);
+    const [re, im] = [tidy(source.voltage * Math.cos(radians)), tidy(source.voltage * Math.sin(radians))];
+    for (const seat of seats[index]) {
+      const part = seat.sign / seats[index].length;
+      cards.push(`EX 0 ${seat.wire + 1} ${seat.segment} 0 ${number(re * part)} ${number(im * part)}`);
+    }
+  });
+  // The engine numbers its sources over the whole structure.
+  const before = segments.map((_, index) => segments.slice(0, index).reduce((sum, count) => sum + count, 0));
+  const feeds = seats.slice(0, sources.length).map((ofSource) => ofSource.map((seat) => before[seat.wire] + seat.segment));
+
+  // Where the pulses are: in the middle of the segment, or on the joint.
+  const places = pulses.map(({ at }, index): Point => {
+    const ofPulse = seats[index];
+    if (ofPulse.length > 1) return along(at.wire, at.place === "b" ? 0 : wireLength(wires[at.wire]));
+    const { wire, segment } = ofPulse[0];
+    const before = pieces[wire].slice(0, segment - 1).reduce((sum, length) => sum + length, 0);
+    return along(wire, before + pieces[wire][segment - 1] / 2);
+  });
+  return result(segments, cards, seated, { sources: places.slice(0, sources.length), loads: places.slice(sources.length) }, feeds);
 }
 
 /**
@@ -181,9 +284,9 @@ function structure(model: Model): Structure {
 function loading(model: Model, { loads }: Structure, frequency: number): string[] {
   const cards: string[] = [];
   if (model.wireConductivity > 0) cards.push(`LD 5 0 0 0 ${number(model.wireConductivity)}`);
-  for (const { load, tag, segment } of loads) {
+  for (const { load, tag, segment, share } of loads) {
     const impedance = loadImpedance(load, frequency);
-    if (impedance) cards.push(`LD 4 ${tag} ${segment} ${segment} ${number(impedance[0])} ${number(impedance[1])}`);
+    if (impedance) cards.push(`LD 4 ${tag} ${segment} ${segment} ${number(impedance[0] * share)} ${number(impedance[1] * share)}`);
   }
   return cards;
 }
@@ -198,13 +301,14 @@ function lumped(model: Model, { loads }: Structure): string[] {
   const omega = 2 * Math.PI * model.frequency * 1e6;
   const cards: string[] = [];
   if (model.wireConductivity > 0) cards.push(`LD 5 0 0 0 ${number(model.wireConductivity)}`);
-  for (const { load, tag, segment } of loads) {
+  for (const { load, tag, segment, share } of loads) {
     const at = `${tag} ${segment} ${segment}`;
     if (load.kind === "rx") {
-      cards.push(`LD 4 ${at} ${number(load.resistance)} ${number(load.reactance)}`);
+      cards.push(`LD 4 ${at} ${number(load.resistance * share)} ${number(load.reactance * share)}`);
       continue;
     }
-    const [henries, farads, q] = [load.inductance * 1e-6, load.capacitance * 1e-12, load.q];
+    // A part of a load has that part of its coil and of its resistance, and a capacitor that much larger.
+    const [henries, farads, q] = [load.inductance * 1e-6 * share, (load.capacitance * 1e-12) / share, load.q];
     if (henries > 0 && farads > 0) {
       // In parallel: the coil with its loss in series becomes the coil and the resistor that stand side by side.
       const resistance = q > 0 ? ((omega * henries) / q) * (1 + q * q) : 0;
@@ -219,9 +323,11 @@ function lumped(model: Model, { loads }: Structure): string[] {
   return cards;
 }
 
-const finish = ({ cards, segments, errors, warnings }: Structure, request: string[]): Deck => ({
+const finish = ({ cards, segments, marks, feeds, errors, warnings }: Structure, request: string[]): Deck => ({
   text: errors.length > 0 ? "" : [...cards, ...request, "EN"].join("\n") + "\n",
   segments,
+  marks,
+  feeds: errors.length > 0 ? [] : feeds,
   errors,
   warnings,
 });

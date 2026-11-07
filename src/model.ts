@@ -39,6 +39,13 @@ export interface Pulse {
   offset?: number;
 }
 
+/** A source of voltage, as in MMANA: its place, its phase in degrees and its voltage in volts. */
+export interface Source {
+  at: Pulse;
+  phase: number;
+  voltage: number;
+}
+
 /**
  * A coil, a capacitor, or both in parallel, which is a trap. The quality
  * factor is that of the coil, or of the capacitor when there is no coil.
@@ -75,7 +82,8 @@ export interface Model {
   /** The name of the antenna: the first line of a file of MMANA. */
   name: string;
   wires: Wire[];
-  source: Pulse;
+  /** At least one. Several make a phased array, as HB9CV. */
+  sources: Source[];
   loads: Load[];
   /** MHz. */
   frequency: number;
@@ -97,7 +105,7 @@ export const ALUMINIUM = 3.5e7;
 export const defaultModel: Model = {
   name: "Диполь на 20 м",
   wires: [{ x1: 0, y1: -5.18, z1: 10, x2: 0, y2: 5.18, z2: 10, radius: 0.001, segments: -1 }],
-  source: { wire: 0, place: "c" },
+  sources: [{ at: { wire: 0, place: "c" }, phase: 0, voltage: 1 }],
   loads: [],
   frequency: 14.15,
   ground: { kind: "real", permittivity: 13, conductivity: 0.005 },
@@ -106,6 +114,21 @@ export const defaultModel: Model = {
   reference: 50,
   sweep: { from: 13.6, to: 14.7, points: 23 },
 };
+
+/** What the results at the frequency of the model depend on, as text: everything but the name and the sweep. */
+export function resultKey(model: Model): string {
+  const { name, sweep, ...rest } = model;
+  void name;
+  void sweep;
+  return JSON.stringify(rest);
+}
+
+/** What a sweep depends on, as text: everything but the name. The segments follow the frequency of the model. */
+export function sweepKey(model: Model): string {
+  const { name, ...rest } = model;
+  void name;
+  return JSON.stringify(rest);
+}
 
 /** A pulse in the notation of MMANA: `w1c` is the centre of wire 1, `w3c1` one segment further on wire 3. */
 export function formatPulse(pulse: Pulse): string {

@@ -93,7 +93,7 @@ describe("loads and loss through the engine", () => {
 
   it("add an impedance in the segment of the source to the input impedance", () => {
     const [bare] = impedance(buildDeck(dipole).text);
-    const load: Load = { kind: "rx", at: dipole.source, resistance: 10, reactance: 25 };
+    const load: Load = { kind: "rx", at: dipole.sources[0].at, resistance: 10, reactance: 25 };
     const [loaded] = impedance(buildDeck({ ...dipole, loads: [load] }).text);
     expectSame(loaded, [bare[0] + 10, bare[1] + 25]);
   });
@@ -129,7 +129,7 @@ describe("loads and loss through the engine", () => {
     const short: Model = { ...dipole, wires: [{ ...dipole.wires[0], y1: -2.5, y2: 2.5 }] };
     const [, reactance] = solveModel(short).impedance;
     expect(reactance).toBeLessThan(-300);
-    const coil: Load = { kind: "lc", at: short.source, inductance: -reactance / (2 * Math.PI * short.frequency), capacitance: 0, q: 50 };
+    const coil: Load = { kind: "lc", at: short.sources[0].at, inductance: -reactance / (2 * Math.PI * short.frequency), capacitance: 0, q: 50 };
     const tuned = solveModel({ ...short, loads: [coil] });
     expect(Math.abs(tuned.impedance[1])).toBeLessThan(1e-6 * -reactance);
     expect(tuned.efficiency!).toBeGreaterThan(0.3);
@@ -184,5 +184,108 @@ describe("the dipole of the library of MMANA through the engine", () => {
     expect(summary.impedance[0]).toBeLessThan(76.5);
     // A little more than the 7.13 dBi of MMANA, which divides by the power that its perfect ground takes.
     expect(Math.abs(summary.gain - 7.37)).toBeLessThan(0.1);
+  });
+});
+
+// The references come from the same models with very many equal segments:
+// the trap dipole with 641/225/225 segments resonates at 7.055 and 3.585 MHz,
+// and its resonance still moves by a few kilohertz with more; the loaded
+// vertical with 1281 segments has 21.32 - j3.25 ohms. Before loads had short
+// segments, the automatic segmentation gave 6.970 and 3.635 MHz, and
+// 19.50 - j50.22 ohms.
+describe("short segments around loads and pulses on joints through the engine", () => {
+  const resonances = (model: Model, from: number, to: number): number[] => {
+    const deck = buildSweepDeck({ ...model, sweep: { from, to, points: 51 } });
+    expect(deck.errors).toEqual([]);
+    const output = run(deck.text);
+    expect(output.error).toBeNull();
+    const points = sweepPoints(output.jobs[0].solutions, 50);
+    const found: number[] = [];
+    for (let i = 1; i < points.length; i++) {
+      const [a, b] = [points[i - 1], points[i]];
+      if (a.impedance[1] < 0 && b.impedance[1] >= 0) {
+        found.push(a.frequency + ((0 - a.impedance[1]) / (b.impedance[1] - a.impedance[1])) * (b.frequency - a.frequency));
+      }
+    }
+    return found;
+  };
+  const straight = (y1: number, y2: number, radius: number): Model["wires"][number] => ({ x1: 0, y1, z1: 0, x2: 0, y2, z2: 0, radius, segments: -1 });
+
+  it("bring a trap dipole to the resonances of a fine model", () => {
+    // W3DZZ for 80 and 40 m, as the library of MMANA has it: traps of 9.27 uH and 55 pF on the joints.
+    const trap = (wire: number): Load => ({ kind: "lc", at: { wire, place: "b" }, inductance: 9.26615, capacitance: 55, q: 300 });
+    const model: Model = {
+      ...defaultModel,
+      wires: [straight(-10.3, 10.3, 0.0015), straight(10.3, 17.55, 0.0015), straight(-10.3, -17.55, 0.0015)],
+      loads: [trap(1), trap(2)],
+      frequency: 7.04,
+      ground: { ...defaultModel.ground, kind: "free" },
+    };
+    const [forty] = resonances(model, 6.9, 7.2);
+    expect(Math.abs(forty - 7.05)).toBeLessThan(0.015);
+    const [eighty] = resonances(model, 3.5, 3.7);
+    expect(Math.abs(eighty - 3.585)).toBeLessThan(0.01);
+  });
+
+  it("make the loaded vertical of the tutorial almost resonant, as MMANA does", () => {
+    const loaded: Model = {
+      ...defaultModel,
+      wires: [{ x1: 0, y1: 0, z1: 0, x2: 0, y2: 0, z2: 5.19, radius: 0.001, segments: -1 }],
+      sources: [{ at: { wire: 0, place: "b" }, phase: 0, voltage: 1 }],
+      loads: [{ kind: "lc", at: { wire: 0, place: "c" }, inductance: 20, capacitance: 0, q: 100 }],
+      frequency: 7.05,
+      ground: { ...defaultModel.ground, kind: "perfect" },
+      wireConductivity: COPPER,
+    };
+    const [r, x] = solveModel(loaded).impedance;
+    expect(Math.abs(r - 21.32)).toBeLessThan(0.5);
+    expect(Math.abs(x - -3.25)).toBeLessThan(1.5);
+  });
+
+  it("feed a dipole of two wires on their joint as a dipole of one wire", () => {
+    const one: Model = { ...defaultModel, wires: [straight(-5.17, 5.17, 0.001)], frequency: 14.05, ground: { ...defaultModel.ground, kind: "free" } };
+    const two: Model = { ...one, wires: [straight(-5.17, 0, 0.001), straight(0, 5.17, 0.001)], sources: [{ at: { wire: 0, place: "e" }, phase: 0, voltage: 1 }] };
+    const [single, joined] = [solveModel(one).impedance, solveModel(two).impedance];
+    expect(Math.abs(single[0] - joined[0])).toBeLessThan(0.5);
+    expect(Math.abs(single[1] - joined[1])).toBeLessThan(0.5);
+  });
+});
+
+// HB9CV of the library of MMANA: two elements fed 135 degrees apart. Its
+// phasing gives a deep null behind, which the longer rear element alone,
+// a reflector, does not; the other sign of the phase loses it.
+describe("a phased array through the engine", () => {
+  const element = (x: number, half: number): Model["wires"][number] => ({ x1: x, y1: -half, z1: 0, x2: x, y2: half, z2: 0, radius: 0.01, segments: -1 });
+  const hb9cv = (phase: number): Model => ({
+    ...defaultModel,
+    wires: [element(0, 4.945), element(-2.65, 5.31)],
+    sources: [
+      { at: { wire: 0, place: "c" }, phase: 0, voltage: 0.5 },
+      { at: { wire: 1, place: "c" }, phase, voltage: 0.5 },
+    ],
+    frequency: 14.05,
+    ground: { ...defaultModel.ground, kind: "free" },
+  });
+  const solveArray = (model: Model) => {
+    const deck = buildDeck(model);
+    expect(deck.errors).toEqual([]);
+    const output = run(deck.text);
+    expect(output.error).toBeNull();
+    const solution = output.jobs[0].solutions[0];
+    return { summary: summarize(solution, model.reference, deck.feeds), input: solution.power!.input };
+  };
+
+  it("beams forward with the deep null behind that its phasing gives", () => {
+    const { summary, input } = solveArray(hb9cv(135));
+    expect(summary.azimuth).toBe(0);
+    expect(summary.frontToBack!).toBeGreaterThan(18);
+    expect(summary.gain).toBeGreaterThan(6.2);
+    expect(summary.gain).toBeLessThan(7.2);
+    // Both sources give power, and together all of it.
+    expect(summary.ports).toHaveLength(2);
+    expect(summary.ports.every((port) => port.power > 0)).toBe(true);
+    expect(summary.ports[0].power + summary.ports[1].power).toBeCloseTo(input, 12);
+    const reversed = solveArray(hb9cv(-135)).summary;
+    expect(summary.frontToBack! - reversed.frontToBack!).toBeGreaterThan(5);
   });
 });

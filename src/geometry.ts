@@ -1,4 +1,4 @@
-import { pulseSegment, type Model, type Pulse, type Wire } from "./model";
+import type { Model, Pulse, Wire } from "./model";
 
 export type Point = [number, number, number];
 
@@ -17,35 +17,30 @@ export function placedWires(model: Model): Wire[] {
   return lift === 0 ? model.wires : model.wires.map((wire) => ({ ...wire, z1: wire.z1 + lift, z2: wire.z2 + lift }));
 }
 
-/** The points of a model that the view marks: its source and its loads. */
+/** The points of a model that the view marks: its sources and its loads. */
 export interface Marks {
-  /** `null` if the wire of the source does not exist. */
-  source: Point | null;
+  sources: Point[];
   loads: Point[];
 }
 
 /**
- * Where the source and the loads of a model are: each in the middle of its
- * segment. `segments` holds the number of segments of every wire; for a wire
- * without one the place itself is taken: the beginning, the centre or the end.
+ * Where the sources and the loads of a model roughly are: at the beginning,
+ * the centre or the end of their wires. This serves the view while the model
+ * cannot be divided into segments; the deck of a sound model has the places
+ * themselves. A pulse on a wire that does not exist has no mark.
  */
-export function marks(model: Model, segments: number[]): Marks {
+export function roughMarks(model: Model): Marks {
   const wires = placedWires(model);
   const point = (pulse: Pulse): Point | null => {
     const wire = wires[pulse.wire];
-    if (!wire) return null;
-    const count = segments[pulse.wire];
-    if (!count) return along(wire, pulse.place === "b" ? 0 : pulse.place === "e" ? 1 : 0.5);
-    const segment = Math.min(Math.max(pulseSegment(pulse, count), 1), count);
-    return along(wire, (segment - 0.5) / count);
+    return wire ? along(wire, pulse.place === "b" ? 0 : pulse.place === "e" ? 1 : 0.5) : null;
   };
-  return {
-    source: point(model.source),
-    loads: model.loads.flatMap((load) => {
-      const at = point(load.at);
+  const points = (pulses: Pulse[]): Point[] =>
+    pulses.flatMap((pulse) => {
+      const at = point(pulse);
       return at ? [at] : [];
-    }),
-  };
+    });
+  return { sources: points(model.sources.map((source) => source.at)), loads: points(model.loads.map((load) => load.at)) };
 }
 
 /** The distance from a point to the wire end that is farthest from it; 0 without wires. */

@@ -4,13 +4,13 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
-import { bounds, farthest, marks, placedWires, type Point } from "../geometry";
+import { bounds, farthest, placedWires, roughMarks, type Marks, type Point } from "../geometry";
 import type { Model } from "../model";
 
 interface Props {
   model: Model;
-  /** The number of segments of every wire, to put the marks in their segments; empty if not known. */
-  segments: number[];
+  /** Where the sources and the loads sit, from the deck of the model; `null` while the model has none. */
+  marks: Marks | null;
 }
 
 /** What the view keeps between two models. */
@@ -22,7 +22,7 @@ interface Stage {
   /** The objects of the model: replaced when it changes. */
   content: THREE.Group;
   wireMaterial: LineMaterial;
-  /** The marks of the source and of the loads: spheres of radius 1 that are scaled for every picture. */
+  /** The marks of the sources and of the loads: spheres of radius 1 that are scaled for every picture. */
   markers: THREE.Mesh[];
   /** The request to show everything that the camera has answered; -1 before the first. */
   fitted: number;
@@ -54,15 +54,15 @@ function clear(group: THREE.Group) {
 }
 
 /** The antenna in space: drag to turn it, scroll to zoom. The Z axis points up. */
-export function View3D({ model, segments }: Props) {
+export function View3D({ model, marks }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const stage = useRef<Stage | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [fitRequest, setFitRequest] = useState(0);
   const { ground } = model;
   const wires = placedWires(model);
-  const { source, loads } = marks(model, segments);
-  const marksKey = JSON.stringify([source, loads]);
+  const { sources, loads } = marks ?? roughMarks(model);
+  const marksKey = JSON.stringify([sources, loads]);
   const wiresKey = JSON.stringify(wires);
 
   // The renderer, the camera and the controls live as long as the view.
@@ -147,7 +147,7 @@ export function View3D({ model, segments }: Props) {
       content.add(marker);
       return marker;
     };
-    current.markers = [...loads.map((at) => mark(at, "--trace-c")), ...(source ? [mark(source, "--trace-b")] : [])];
+    current.markers = [...loads.map((at) => mark(at, "--trace-c")), ...sources.map((at) => mark(at, "--trace-b"))];
 
     const axes = new THREE.AxesHelper(radius * 0.5);
     axes.setColors(new THREE.Color("#e5484d"), new THREE.Color("#30a46c"), new THREE.Color("#3e8ed0"));
@@ -220,7 +220,7 @@ export function View3D({ model, segments }: Props) {
       <div className="view-bar">
         <span className="axes">
           <span className="axis-x">X</span> <span className="axis-y">Y</span> <span className="axis-z">Z</span>
-          <span className="mark source-mark">джерело</span>
+          {sources.length > 0 && <span className="mark source-mark">{sources.length > 1 ? "джерела" : "джерело"}</span>}
           {loads.length > 0 && <span className="mark load-mark">навантаження</span>}
         </span>
         <button type="button" className="quiet" onClick={() => setFitRequest((count) => count + 1)}>

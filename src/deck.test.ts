@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildDeck, buildSweepDeck, exportDeck, segmentCount, wavelength } from "./deck";
+import { buildDeck, buildSweepDeck, exportDeck } from "./deck";
+import { loadImpedance } from "./loads";
 import { defaultModel, formatPulse, parsePulse, type Load, type Model, type Wire } from "./model";
+import { segmentCount, wavelength } from "./segmentation";
 
 const wire = (change: Partial<Wire> = {}): Wire => ({ ...defaultModel.wires[0], ...change });
 
@@ -65,7 +67,7 @@ describe("the deck of a model", () => {
     const monopole: Model = {
       ...defaultModel,
       wires: [wire({ y1: 0, z1: 0, y2: 0, z2: 5 }), wire({ segments: 10 })],
-      source: { wire: 0, place: "b" },
+      sources: [{ at: { wire: 0, place: "b" }, phase: 0, voltage: 1 }],
       ground: { ...defaultModel.ground, kind: "perfect" },
     };
     const cards = buildDeck(monopole).text.split("\n");
@@ -73,7 +75,7 @@ describe("the deck of a model", () => {
     expect(cards).toContain("GN 1");
     expect(cards).toContain("EX 0 1 1 0 1 0");
 
-    const free = buildDeck({ ...defaultModel, ground: { ...defaultModel.ground, kind: "free" }, source: { wire: 0, place: "e" } });
+    const free = buildDeck({ ...defaultModel, ground: { ...defaultModel.ground, kind: "free" }, sources: [{ at: { wire: 0, place: "e" }, phase: 0, voltage: 1 }] });
     expect(free.text).not.toContain("GN");
     expect(free.text).toContain("EX 0 1 20 0 1 0");
     expect(free.text).toContain("RP 0 37 72 1000 0 0 5 5");
@@ -81,7 +83,7 @@ describe("the deck of a model", () => {
 
   it("moves the source by segments and refuses a move off the wire", () => {
     const at = (place: "b" | "c" | "e", offset: number) =>
-      buildDeck({ ...defaultModel, source: { wire: 0, place, offset } });
+      buildDeck({ ...defaultModel, sources: [{ at: { wire: 0, place, offset }, phase: 0, voltage: 1 }] });
     expect(at("c", 2).text).toContain("EX 0 1 13 0 1 0");
     expect(at("c", -3).text).toContain("EX 0 1 8 0 1 0");
     expect(at("b", 1).text).toContain("EX 0 1 2 0 1 0");
@@ -95,7 +97,7 @@ describe("the deck of a model", () => {
     const broken: Model = {
       ...defaultModel,
       wires: [wire({ y1: 1, y2: 1, radius: 0 }), wire({ z1: -1 })],
-      source: { wire: 2, place: "c" },
+      sources: [{ at: { wire: 2, place: "c" }, phase: 0, voltage: 1 }],
       frequency: 0,
     };
     const { errors, text } = buildDeck(broken);
@@ -124,7 +126,7 @@ describe("the deck of a model", () => {
     const free = buildDeck({ ...defaultModel, wires: [wire({ z1: 0, z2: 0 })], ground: { ...defaultModel.ground, kind: "free" } });
     expect(free.errors).toEqual([]);
 
-    const vertical: Model = { ...defaultModel, wires: [wire({ y1: 0, z1: 0, y2: 0, z2: 5 })], source: { wire: 0, place: "b" } };
+    const vertical: Model = { ...defaultModel, wires: [wire({ y1: 0, z1: 0, y2: 0, z2: 5 })], sources: [{ at: { wire: 0, place: "b" }, phase: 0, voltage: 1 }] };
     expect(buildDeck(vertical).warnings).toEqual(["Дріт 1 торкається реальної землі: таке заземлення NEC-2 рахує неточно."]);
     expect(buildDeck({ ...vertical, ground: { ...vertical.ground, kind: "perfect" } }).warnings).toEqual([]);
   });
@@ -170,42 +172,54 @@ describe("the loads of a model", () => {
   const coil: Load = { kind: "lc", at: { wire: 0, place: "c", offset: 3 }, inductance: 10, capacitance: 0, q: 0 };
   const resistor: Load = { kind: "rx", at: { wire: 0, place: "b" }, resistance: 50, reactance: -20 };
   const cards = (deck: { text: string }): string[] => deck.text.split("\n");
+  const loadCards = (deck: { text: string }): string[] => cards(deck).filter((card) => card.startsWith("LD"));
+  /** The segment of the first card of a load of the given type. */
+  const seat = (deck: { text: string }, type: number): number => Number(loadCards(deck).find((card) => card.startsWith(`LD ${type} 1`))!.split(" ")[3]);
 
   it("become impedances at the frequency of the model, after the loss of the wires", () => {
     const deck = buildDeck({ ...defaultModel, wireConductivity: 5.8e7, loads: [coil, resistor] });
     expect(deck.errors).toEqual([]);
-    expect(cards(deck).slice(5, 10)).toEqual([
-      "EX 0 1 11 0 1 0",
-      "LD 5 0 0 0 58000000",
-      `LD 4 1 14 14 0 ${coilOhms(14.15, 10)}`,
-      "LD 4 1 1 1 50 -20",
-      "FR 0 1 0 0 14.15 0",
-    ]);
+    const coilSeat = seat(deck, 4);
+    expect(loadCards(deck)).toEqual(["LD 5 0 0 0 58000000", `LD 4 1 ${coilSeat} ${coilSeat} 0 ${coilOhms(14.15, 10)}`, "LD 4 1 1 1 50 -20"]);
+    // The loads come after the source and before the frequency.
+    const all = cards(deck);
+    expect(all.indexOf("LD 5 0 0 0 58000000")).toBe(all.findIndex((card) => card.startsWith("EX")) + 1);
+    expect(all[all.indexOf("LD 4 1 1 1 50 -20") + 1]).toBe("FR 0 1 0 0 14.15 0");
   });
 
-  it("give a wire that is loaded at its centre an odd number of segments", () => {
-    const model: Model = {
-      ...defaultModel,
-      wires: [wire({ y1: 0, z1: 0.5, y2: 0, z2: 5 }), wire()],
-      source: { wire: 0, place: "b" },
-      loads: [{ ...coil, at: { wire: 1, place: "c" } }],
-    };
-    expect(buildDeck(model).segments).toEqual([9, 21]);
-    expect(buildDeck({ ...model, loads: [] }).segments).toEqual([9, 20]);
+  it("sit in a short segment in the middle of their place, with equal segments beside it", () => {
+    const centre: Load = { ...coil, at: { wire: 0, place: "c" } };
+    const deck = buildDeck({ ...defaultModel, sources: [{ at: { wire: 0, place: "b" }, phase: 0, voltage: 1 }], loads: [centre] });
+    // The wire is cut in several cards with one tag: the regular ends, then shorter and shorter segments.
+    const wires = cards(deck).filter((card) => card.startsWith("GW"));
+    expect(wires.length).toBeGreaterThan(3);
+    expect(wires.every((card) => card.startsWith("GW 1 "))).toBe(true);
+    expect(deck.segments[0]).toBe(wires.reduce((total, card) => total + Number(card.split(" ")[2]), 0));
+    // The load sits exactly at the centre of the wire.
+    deck.marks!.loads[0].forEach((value, axis) => expect(value).toBeCloseTo([0, 0, 10][axis], 12));
+    // A load in the segment of the source shares it: that segment stays regular.
+    const shared = buildDeck({ ...defaultModel, loads: [centre] });
+    expect(cards(shared).filter((card) => card.startsWith("GW"))).toEqual(["GW 1 21 0 -5.18 10 0 5.18 10 0.001"]);
+    expect(seat(shared, 4)).toBe(11);
+    // Without loads the wire is one card of regular segments.
+    expect(cards(buildDeck(defaultModel)).filter((card) => card.startsWith("GW"))).toEqual(["GW 1 21 0 -5.18 10 0 5.18 10 0.001"]);
   });
 
   it("are written again for every frequency of a sweep when they depend on it", () => {
     const sweep = { from: 14, to: 14.2, points: 3 };
-    const stepped = buildSweepDeck({ ...defaultModel, sweep, loads: [coil] });
-    expect(cards(stepped).slice(6)).toEqual([
+    const model = { ...defaultModel, sweep, loads: [coil] };
+    const at = seat(buildDeck(model), 4);
+    const stepped = buildSweepDeck(model);
+    const request = cards(stepped).slice(cards(stepped).indexOf("PT -1"));
+    expect(request).toEqual([
       "PT -1",
-      `LD 4 1 14 14 0 ${coilOhms(14, 10)}`,
+      `LD 4 1 ${at} ${at} 0 ${coilOhms(14, 10)}`,
       "FR 0 1 0 0 14 0",
       "XQ 0",
-      `LD 4 1 14 14 0 ${coilOhms(14.1, 10)}`,
+      `LD 4 1 ${at} ${at} 0 ${coilOhms(14.1, 10)}`,
       "FR 0 1 0 0 14.1 0",
       "XQ 0",
-      `LD 4 1 14 14 0 ${coilOhms(14.2, 10)}`,
+      `LD 4 1 ${at} ${at} 0 ${coilOhms(14.2, 10)}`,
       "FR 0 1 0 0 14.2 0",
       "XQ 0",
       "EN",
@@ -213,25 +227,59 @@ describe("the loads of a model", () => {
     ]);
     // A fixed impedance and the loss of the wires are the same cards at every frequency.
     const fixed = buildSweepDeck({ ...defaultModel, sweep, wireConductivity: 3.5e7, loads: [resistor] });
-    expect(cards(fixed).slice(6)).toEqual(["PT -1", "LD 5 0 0 0 35000000", "LD 4 1 1 1 50 -20", "FR 0 3 0 0 14 0.1", "XQ 0", "EN", ""]);
+    expect(cards(fixed).slice(cards(fixed).indexOf("PT -1"))).toEqual([
+      "PT -1",
+      "LD 5 0 0 0 35000000",
+      "LD 4 1 1 1 50 -20",
+      "FR 0 3 0 0 14 0.1",
+      "XQ 0",
+      "EN",
+      "",
+    ]);
   });
 
-  it("are coils and capacitors in the deck for other programs", () => {
+  it("are coils and capacitors in the deck for other programs, in the same segments", () => {
     const loads: Load[] = [
       { ...coil, q: 200 },
       { kind: "lc", at: { wire: 0, place: "e", offset: 1 }, inductance: 0, capacitance: 50, q: 0 },
       { kind: "lc", at: { wire: 0, place: "c", offset: -3 }, inductance: 10, capacitance: 50, q: 0 },
       resistor,
     ];
-    const deck = exportDeck({ ...defaultModel, loads });
-    expect(deck.errors).toEqual([]);
-    expect(cards(deck).slice(6, 10)).toEqual([
-      `LD 0 1 14 14 ${Number((coilOhms(14.15, 10) / 200).toPrecision(10))} 0.00001 0`,
-      "LD 0 1 20 20 0 0 5e-11",
-      "LD 1 1 8 8 0 0.00001 5e-11",
+    const model = { ...defaultModel, loads };
+    const portable = exportDeck(model);
+    expect(portable.errors).toEqual([]);
+    const segments = loadCards(buildDeck(model)).map((card) => card.split(" ").slice(3, 5).join(" "));
+    expect(loadCards(portable)).toEqual([
+      `LD 0 1 ${segments[0]} ${Number((coilOhms(14.15, 10) / 200).toPrecision(10))} 0.00001 0`,
+      `LD 0 1 ${segments[1]} 0 0 5e-11`,
+      `LD 1 1 ${segments[2]} 0 0.00001 5e-11`,
       "LD 4 1 1 1 50 -20",
     ]);
-    expect(cards(deck).slice(10)).toEqual(cards(buildDeck(defaultModel)).slice(6));
+    // Everything else is the deck of the page.
+    const rest = (deck: { text: string }) => cards(deck).filter((card) => !card.startsWith("LD"));
+    expect(rest(portable)).toEqual(rest(buildDeck(model)));
+  });
+
+  it("on the joint of two wires are halves in the two segments that meet there", () => {
+    const trap: Load = { kind: "lc", at: { wire: 1, place: "b" }, inductance: 10, capacitance: 50, q: 0 };
+    const model: Model = {
+      ...defaultModel,
+      wires: [wire({ y1: -5, y2: 5 }), wire({ y1: 5, y2: 8 })],
+      loads: [trap, { kind: "rx", at: { wire: 1, place: "b" }, resistance: 10, reactance: 4 }],
+    };
+    const deck = buildDeck(model);
+    expect(deck.errors).toEqual([]);
+    const [first, second] = [deck.segments[0], 1];
+    const impedance = loadImpedance(trap, 14.15)!.map((part) => Number((part / 2).toPrecision(10)));
+    expect(loadCards(deck)).toEqual([
+      `LD 4 2 ${second} ${second} ${impedance[0]} ${impedance[1]}`,
+      `LD 4 1 ${first} ${first} ${impedance[0]} ${impedance[1]}`,
+      "LD 4 2 1 1 5 2",
+      `LD 4 1 ${first} ${first} 5 2`,
+    ]);
+    // A half of a trap is a trap with half the coil and twice the capacitor.
+    expect(loadCards(exportDeck(model)).slice(0, 2)).toEqual([`LD 1 2 1 1 0 0.000005 1e-10`, `LD 1 1 ${first} ${first} 0 0.000005 1e-10`]);
+    expect(deck.marks!.loads).toEqual([[0, 5, 10], [0, 5, 10]]);
   });
 
   it("are refused or warned about when they make no sense", () => {
@@ -244,8 +292,98 @@ describe("the loads of a model", () => {
     const empty = at({ ...coil, inductance: 0 });
     expect(empty.warnings).toEqual(["Навантаження 1 не має ні котушки, ні конденсатора: воно нічого не змінює."]);
     expect(empty.text).not.toContain("LD");
-    const even = buildDeck({ ...defaultModel, wires: [wire({ segments: 20 })], source: { wire: 0, place: "b" }, loads: [{ ...coil, at: { wire: 0, place: "c" } }] });
+    const even = buildDeck({ ...defaultModel, wires: [wire({ segments: 20 })], sources: [{ at: { wire: 0, place: "b" }, phase: 0, voltage: 1 }], loads: [{ ...coil, at: { wire: 0, place: "c" } }] });
     expect(even.warnings).toEqual(["Дріт 1 має парну кількість сегментів: навантаження 1 стоїть не точно в центрі."]);
     expect(buildDeck({ ...defaultModel, wireConductivity: -1 }).errors).toEqual(["Провідність дротів не може бути від'ємною."]);
+  });
+});
+
+describe("the source on the joint of two wires", () => {
+  it("is two sources in series, half the voltage each, in the direction of the first wire", () => {
+    const half = (y1: number, y2: number) => wire({ y1, y2 });
+    const along: Model = { ...defaultModel, wires: [half(-5.18, 0), half(0, 5.18)], sources: [{ at: { wire: 0, place: "e" }, phase: 0, voltage: 1 }] };
+    const sources = (model: Model) => buildDeck(model).text.split("\n").filter((card) => card.startsWith("EX"));
+    const [left] = buildDeck(along).segments;
+    expect(sources(along)).toEqual([`EX 0 1 ${left} 0 0.5 0`, "EX 0 2 1 0 0.5 0"]);
+    // The second wire points back to the joint: its half goes the other way.
+    const against: Model = { ...along, wires: [half(-5.18, 0), half(5.18, 0)] };
+    const [, right] = buildDeck(against).segments;
+    expect(sources(against)).toEqual([`EX 0 1 ${left} 0 0.5 0`, `EX 0 2 ${right} 0 -0.5 0`]);
+    expect(buildDeck(along).marks!.sources).toEqual([[0, 0, 10]]);
+  });
+});
+
+describe("several sources", () => {
+  // Two elements fed as HB9CV: the second 135 degrees ahead in phase.
+  const beam: Model = {
+    ...defaultModel,
+    wires: [wire({ y1: -4.945, y2: 4.945 }), wire({ x1: -2.65, x2: -2.65, y1: -5.31, y2: 5.31 })],
+    sources: [
+      { at: { wire: 0, place: "c" }, phase: 0, voltage: 0.5 },
+      { at: { wire: 1, place: "c" }, phase: 135, voltage: 0.5 },
+    ],
+  };
+  const sources = (deck: { text: string }) => deck.text.split("\n").filter((card) => card.startsWith("EX"));
+
+  it("are cards with the voltage as real and imaginary parts, and the engine numbers them over the structure", () => {
+    const deck = buildDeck(beam);
+    expect(deck.errors).toEqual([]);
+    const [first, second] = deck.segments;
+    const [centre1, centre2] = [(first + 1) / 2, (second + 1) / 2];
+    expect(sources(deck)).toEqual([`EX 0 1 ${centre1} 0 0.5 0`, `EX 0 2 ${centre2} 0 -0.3535533906 0.3535533906`]);
+    expect(deck.feeds).toEqual([[centre1], [first + centre2]]);
+    expect(deck.marks!.sources).toHaveLength(2);
+  });
+
+  it("leave out the card of a source without voltage, which is then a plain segment", () => {
+    const idle = buildDeck({ ...beam, sources: [beam.sources[0], { ...beam.sources[1], voltage: 0 }] });
+    expect(sources(idle)).toHaveLength(1);
+    expect(idle.feeds).toHaveLength(2);
+  });
+
+  it("on a joint keep their phase in both halves", () => {
+    const half = (y1: number, y2: number) => wire({ y1, y2 });
+    const deck = buildDeck({
+      ...defaultModel,
+      wires: [half(-5.18, 0), half(0, 5.18)],
+      sources: [{ at: { wire: 0, place: "e" }, phase: 90, voltage: 1 }],
+    });
+    expect(sources(deck)).toEqual([`EX 0 1 ${deck.segments[0]} 0 0 0.5`, "EX 0 2 1 0 0 0.5"]);
+    expect(deck.feeds).toEqual([[deck.segments[0], deck.segments[0] + 1]]);
+  });
+
+  it("are refused with a reason when they cannot be computed", () => {
+    expect(buildDeck({ ...defaultModel, sources: [] }).errors).toEqual(["У моделі немає джерела."]);
+    expect(buildDeck({ ...defaultModel, sources: [{ ...defaultModel.sources[0], voltage: 0 }] }).errors).toEqual([
+      "Напруга джерела дорівнює нулю: антену нічим не збуджено.",
+    ]);
+    const silent = beam.sources.map((source) => ({ ...source, voltage: 0 }));
+    expect(buildDeck({ ...beam, sources: silent }).errors).toEqual(["Напруга всіх джерел дорівнює нулю: антену нічим не збуджено."]);
+    // Several sources are named by their number.
+    const far = buildDeck({ ...beam, sources: [beam.sources[0], { ...beam.sources[1], at: { wire: 4, place: "c" } }] });
+    expect(far.errors).toEqual(["Джерело 2 стоїть на дроті 5, якого немає."]);
+    const off = buildDeck({ ...beam, sources: [beam.sources[0], { ...beam.sources[1], at: { wire: 0, place: "e", offset: 40 } }] });
+    expect(off.errors).toEqual([`Джерело 2 зсунуте за межі дроту 1: він має ${buildDeck(beam).segments[0]} сегм.`]);
+    // The engine keeps one source in a segment.
+    const twice = buildDeck({ ...beam, sources: [beam.sources[0], { ...beam.sources[1], at: { wire: 0, place: "c" } }] });
+    expect(twice.errors).toEqual(["Джерела 1 і 2 стоять в одному сегменті дроту 1."]);
+    expect(twice.text).toBe("");
+    expect(twice.feeds).toEqual([]);
+  });
+});
+
+describe("tubes of different radii in one line", () => {
+  it("are warned about, as NEC-2 is inaccurate at their steps", () => {
+    const tube = (y1: number, y2: number, radius: number) => wire({ y1, y2, radius });
+    const tapered = buildDeck({ ...defaultModel, wires: [tube(-5.18, -1, 0.01), tube(-1, 1, 0.015), tube(1, 5.18, 0.01)], sources: [{ at: { wire: 1, place: "c" }, phase: 0, voltage: 1 }] });
+    expect(tapered.errors).toEqual([]);
+    expect(tapered.warnings).toEqual([
+      "Труби різного діаметра стикуються на одній осі (дроти 1 і 2 і ще 1). NEC-2 на таких стиках неточний: резонанс елемента може зсунутися на відсотки. Поправки Лісона, якою це виправляє EZNEC, тут ще немає.",
+    ]);
+    // One radius, or a bend, is no step.
+    const even = buildDeck({ ...defaultModel, wires: [tube(-5.18, 0, 0.001), tube(0, 5.18, 0.001)] });
+    expect(even.warnings).toEqual([]);
+    const bent = buildDeck({ ...defaultModel, wires: [tube(-5.18, 0, 0.001), wire({ y1: 0, y2: 0, z1: 10, z2: 15, radius: 0.01 })] });
+    expect(bent.warnings).toEqual([]);
   });
 });

@@ -530,6 +530,25 @@ legend {
   margin: 12px 0 0;
 }
 
+.chosen-source {
+  margin-top: 12px;
+  max-width: 14em;
+}
+
+.ports {
+  min-width: 0;
+  margin-top: 12px;
+}
+
+.ports td {
+  padding: 4px 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ports th {
+  padding: 0 6px 4px;
+}
+
 .charts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

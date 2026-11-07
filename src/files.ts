@@ -1,5 +1,5 @@
 import { importMaa } from "./maa";
-import { defaultModel, type Ground, type Load, type Model, type Pulse, type Sweep, type Wire } from "./model";
+import { defaultModel, type Ground, type Load, type Model, type Pulse, type Source, type Sweep, type Wire } from "./model";
 
 /** What marks a file of this program. */
 const FORMAT = "antenna-modeler";
@@ -28,6 +28,13 @@ function pulse(value: unknown): Pulse | null {
   if (place !== "b" && place !== "c" && place !== "e") return null;
   if (offset !== undefined && !Number.isInteger(offset)) return null;
   return offset ? { wire: wire as number, place, offset: offset as number } : { wire: wire as number, place };
+}
+
+function source(value: unknown): Source | null {
+  if (!isFields(value)) return null;
+  const at = pulse(value.at);
+  const parts = numbers(value, ["phase", "voltage"] as const);
+  return at && parts && { at, ...parts };
 }
 
 function load(value: unknown): Load | null {
@@ -60,21 +67,23 @@ function list<Item>(value: unknown, item: (one: unknown) => Item | null): Item[]
 export function restoreModel(value: unknown): Model | null {
   if (!isFields(value)) return null;
   const wires = list(value.wires, (one): Wire | null => numbers(one, ["x1", "y1", "z1", "x2", "y2", "z2", "radius", "segments"] as const));
-  const source = pulse(value.source);
+  // Before the second version of the format a model had one source, without a phase or a voltage.
+  const legacy = value.sources === undefined ? pulse(value.source) : null;
+  const sources = legacy ? [{ at: legacy, phase: 0, voltage: 1 }] : list(value.sources, source);
   const loads = value.loads === undefined ? [] : list(value.loads, load);
   const scalars = numbers({ height: 0, wireConductivity: 0, ...value }, ["frequency", "height", "wireConductivity", "reference"] as const);
   const sweep: Sweep | null = value.sweep === undefined ? defaultModel.sweep : numbers(value.sweep, ["from", "to", "points"] as const);
   const groundValues = numbers(value.ground, ["permittivity", "conductivity"] as const);
   const kind = isFields(value.ground) ? value.ground.kind : undefined;
-  if (!wires || !source || !loads || !scalars || !sweep || !groundValues) return null;
+  if (!wires || !sources || sources.length === 0 || !loads || !scalars || !sweep || !groundValues) return null;
   if (kind !== "free" && kind !== "perfect" && kind !== "real") return null;
   const ground: Ground = { kind, ...groundValues };
-  return { name: typeof value.name === "string" ? value.name : "", wires, source, loads, ...scalars, ground, sweep };
+  return { name: typeof value.name === "string" ? value.name : "", wires, sources, loads, ...scalars, ground, sweep };
 }
 
 /** The text of a file of this program for a model. */
 export function saveModel(model: Model): string {
-  return JSON.stringify({ format: FORMAT, version: 1, model }, null, 2) + "\n";
+  return JSON.stringify({ format: FORMAT, version: 2, model }, null, 2) + "\n";
 }
 
 export interface Opened {

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { bounds, farthest, marks, placedWires, type Point } from "./geometry";
+import { bounds, farthest, placedWires, roughMarks, type Point } from "./geometry";
 import { defaultModel, type Load, type Model, type Wire } from "./model";
 
 const wire = (ends: number[]): Wire => {
@@ -12,38 +12,25 @@ const near = (point: Point | null, expected: Point) => {
   point!.forEach((value, axis) => expect(value).toBeCloseTo(expected[axis], 12));
 };
 
-it("places the source in the middle of its segment, or at its place when the segments are not known", () => {
-  const model: Model = { ...defaultModel, wires: [wire([0, 0, 0, 2, 4, 6])] };
-  const source = (place: "b" | "c" | "e", segments: number[], offset?: number) =>
-    marks({ ...model, source: { wire: 0, place, offset } }, segments).source;
-  near(source("b", [5]), [0.2, 0.4, 0.6]);
-  near(source("c", [5]), [1, 2, 3]);
-  near(source("e", [5]), [1.8, 3.6, 5.4]);
-  near(source("c", [5], 1), [1.4, 2.8, 4.2]);
-  // An offset beyond the wire stays on its last segment.
-  near(source("c", [5], 9), [1.8, 3.6, 5.4]);
-  near(source("b", []), [0, 0, 0]);
-  near(source("c", []), [1, 2, 3]);
-  near(source("e", []), [2, 4, 6]);
-  expect(marks({ ...model, source: { wire: 1, place: "c" } }, [5]).source).toBeNull();
-});
-
-it("marks the loads whose wire exists", () => {
-  const load = (wire: number, offset: number): Load => ({ kind: "rx", at: { wire, place: "c", offset }, resistance: 50, reactance: 0 });
-  const model: Model = { ...defaultModel, wires: [wire([0, 0, 0, 0, 0, 10])], loads: [load(0, -2), load(4, 0), load(0, 2)] };
-  const { loads } = marks(model, [5]);
+it("places the source and the loads roughly, for a model that has no deck", () => {
+  const load = (wire: number, place: "b" | "c" | "e"): Load => ({ kind: "rx", at: { wire, place }, resistance: 50, reactance: 0 });
+  const model: Model = { ...defaultModel, wires: [wire([0, 0, 0, 2, 4, 6])], loads: [load(0, "b"), load(4, "c"), load(0, "e")] };
+  near(roughMarks({ ...model, sources: [{ at: { wire: 0, place: "c", offset: 3 }, phase: 0, voltage: 1 }] }).sources[0], [1, 2, 3]);
+  expect(roughMarks({ ...model, sources: [{ at: { wire: 1, place: "c" }, phase: 0, voltage: 1 }] }).sources).toEqual([]);
+  // The load on a wire that does not exist has no mark.
+  const { loads } = roughMarks(model);
   expect(loads).toHaveLength(2);
-  near(loads[0], [0, 0, 1]);
-  near(loads[1], [0, 0, 9]);
+  near(loads[0], [0, 0, 0]);
+  near(loads[1], [2, 4, 6]);
 });
 
 it("lifts the wires by the height of the model, but only over a ground", () => {
   const model = { ...defaultModel, wires: [wire([0, 0, 0, 2, 4, 6])], height: 5 };
   expect(placedWires(model)).toEqual([wire([0, 0, 5, 2, 4, 11])]);
-  expect(marks(model, []).source).toEqual([1, 2, 8]);
+  expect(roughMarks(model).sources).toEqual([[1, 2, 8]]);
   const free = { ...model, ground: { ...model.ground, kind: "free" as const } };
   expect(placedWires(free)).toBe(free.wires);
-  expect(marks(free, []).source).toEqual([1, 2, 3]);
+  expect(roughMarks(free).sources).toEqual([[1, 2, 3]]);
 });
 
 it("finds the sphere that holds the wires", () => {

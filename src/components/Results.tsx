@@ -3,6 +3,8 @@ import { PolarPlot } from "./PolarPlot";
 
 interface Props {
   summary: Summary;
+  /** The places of the sources, as `w1c`, to name them in the table of several. */
+  sources: string[];
   reference: number;
   /** The pattern covers only the upper half space. */
   overGround: boolean;
@@ -24,19 +26,26 @@ function impedance([r, x]: [number, number]): string {
 }
 
 /** The numbers and the two cuts of the pattern. */
-export function Results({ summary, reference, overGround, lossy }: Props) {
+export function Results({ summary, sources, reference, overGround, lossy }: Props) {
   const ring = Math.ceil(summary.gain);
+  const several = summary.ports.length > 1;
+  const swrText = (value: number): string => (Number.isFinite(value) ? fixed(value, 2) : "∞");
+  const input = summary.ports.reduce((total, port) => total + port.power, 0);
   return (
     <>
       <dl className="summary">
-        <div>
-          <dt>Вхідний опір</dt>
-          <dd>{impedance(summary.impedance)}</dd>
-        </div>
-        <div>
-          <dt>КСХ ({reference} Ом)</dt>
-          <dd>{Number.isFinite(summary.swr) ? fixed(summary.swr, 2) : "∞"}</dd>
-        </div>
+        {!several && (
+          <>
+            <div>
+              <dt>Вхідний опір</dt>
+              <dd>{impedance(summary.impedance)}</dd>
+            </div>
+            <div>
+              <dt>КСХ ({reference} Ом)</dt>
+              <dd>{swrText(summary.swr)}</dd>
+            </div>
+          </>
+        )}
         <div>
           <dt>Підсилення</dt>
           <dd>{fixed(summary.gain, 2)} дБі</dd>
@@ -60,6 +69,30 @@ export function Results({ summary, reference, overGround, lossy }: Props) {
           </div>
         )}
       </dl>
+      {several && (
+        <table className="ports">
+          <thead>
+            <tr>
+              <th>Джерело</th>
+              <th>Вхідний опір</th>
+              <th>КСХ ({reference} Ом)</th>
+              <th title="Частка потужності, яку дає джерело. Від'ємна: джерело забирає потужність в інших.">Потужність</th>
+            </tr>
+          </thead>
+          <tbody>
+            {summary.ports.map((port, index) => (
+              <tr key={index}>
+                <td>
+                  {index + 1}: {sources[index]}
+                </td>
+                <td>{port.impedance ? impedance(port.impedance) : "без напруги"}</td>
+                <td>{port.swr === null ? "—" : swrText(port.swr)}</td>
+                <td>{input > 0 && port.impedance ? `${fixed((port.power / input) * 100, 0)} %` : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       <div className="plots">
         <PolarPlot
           title={`Горизонтальна діаграма, кут ${fixed(summary.cutElevation, 0)}°`}

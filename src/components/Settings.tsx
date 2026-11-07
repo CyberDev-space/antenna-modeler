@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ALUMINIUM, COPPER, type GroundKind, type Model } from "../model";
 import { NumberField } from "./NumberField";
-import { PulseField } from "./PulseField";
 
 interface Props {
   model: Model;
@@ -25,7 +24,7 @@ const MATERIALS: [conductivity: number, name: string][] = [
 const toMega = (value: number): number => Number((value / 1e6).toPrecision(12));
 const fromMega = (value: number): number => Number((value * 1e6).toPrecision(12));
 
-/** Source, frequency, feed line, material of the wires and ground. */
+/** Frequency, feed line, material of the wires and ground. */
 export function Settings({ model, onChange }: Props) {
   const named = MATERIALS.some(([conductivity]) => conductivity === model.wireConductivity);
   // The conductivity that the user chose to give as a number: it stays the
@@ -35,7 +34,6 @@ export function Settings({ model, onChange }: Props) {
 
   return (
     <div className="settings">
-      <PulseField label="Джерело" value={model.source} onChange={(source) => onChange({ ...model, source })} />
       <NumberField label="Частота, МГц" value={model.frequency} onChange={(frequency) => onChange({ ...model, frequency })} />
       <NumberField label="Лінія, Ом" value={model.reference} onChange={(reference) => onChange({ ...model, reference })} />
       <label className="field">

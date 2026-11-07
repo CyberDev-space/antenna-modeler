@@ -8,25 +8,24 @@ The computing engine is ready and tested: it is a separate project, [nec2-rs](ht
 
 The program itself is in development. This works now:
 
-- **The model.** A table of wires as in MMANA: ends in metres, radius in millimetres, automatic segmentation. One source, written as `w1c`. Loads: a coil, a capacitor, a trap (a coil and a capacitor in parallel) with a quality factor, or a fixed R + jX. The material of the wires: no loss, copper, aluminium or a conductivity of your own. The ground: free space, perfect or real, with the height that MMANA calls "Add height".
-- **The results for one frequency.** Input impedance, SWR, gain, front-to-back ratio, elevation angle and azimuth of the maximum, efficiency, and two cuts of the pattern.
+- **The model.** A table of wires as in MMANA: ends in metres, radius in millimetres, automatic segmentation. Sources written as `w1c`, each with its phase and voltage, so that a phased array such as HB9CV can be modelled. Loads: a coil, a capacitor, a trap (a coil and a capacitor in parallel) with a quality factor, or a fixed R + jX. The material of the wires: no loss, copper, aluminium or a conductivity of your own. The ground: free space, perfect or real, with the height that MMANA calls "Add height".
+- **The results for one frequency.** Input impedance and SWR of every source, with the share of the power that it gives, gain, front-to-back ratio, elevation angle and azimuth of the maximum, efficiency, and two cuts of the pattern.
 - **A sweep over frequency.** SWR, R and X against frequency, the frequency of the lowest SWR and the band where the SWR stays below 2. Coils, capacitors and traps follow the frequency.
-- **A view of the antenna in space**, over the ground when there is one, with the source and the loads marked.
+- **A view of the antenna in space**, over the ground when there is one, with the sources and the loads marked.
 - **Files.** Antenna files of MMANA (`.maa`) are opened and written. A model is saved in a JSON format of its own, which holds everything. The cards of NEC-2 are exported for other programs (`.nec`).
-- **Checks before the engine runs.** A model that cannot be computed gets a message in plain words: a wire on the ground or under it, a source beyond the end of its wire. A model that NEC-2 computes with less accuracy gets a warning: segments that are too long, or too short for their radius, a wire that touches a real ground.
+- **Segments that suit NEC-2.** Wires get equal segments of about a fortieth of a wavelength. A load gets a short segment of its own, with segments beside it as short that then double, because NEC-2 spreads a load over its segment. A source or a load on the joint of two wires sits on the joint itself, as in MMANA, half in each of the two segments that meet there. With this a trap dipole resonates within a few kilohertz of a model with ten times the segments, where equal segments put it 80 kHz lower.
+- **Checks before the engine runs.** A model that cannot be computed gets a message in plain words: a wire on the ground or under it, a source beyond the end of its wire, two sources in one segment, which NEC-2 would quietly merge. A model that NEC-2 computes with less accuracy gets a warning: segments that are too long, or too short for their radius, a wire that touches a real ground.
 
-Not there yet: several sources, the optimizer, the pattern in space, the currents on the wires, a link that holds a model. The interface is in Ukrainian.
+Not there yet: the optimizer, the pattern in space, the currents on the wires, a link that holds a model. The interface is in Ukrainian.
 
 ### What a file of MMANA loses
 
 MMANA and this program do not model the same things, so a `.maa` file does not carry everything across. When a file is opened, the page lists what it left out:
 
-- a wire with a combined radius (a negative R, which points to a table of tubes of several diameters) gets a radius of 1 mm, so an antenna with such elements gives other results than in MMANA;
+- a wire of tubes of several diameters (a negative R, which points to the taper wire set) becomes one wire for every tube, and the types with an asterisk, whose meaning the help of MMANA does not give, are read as those without it. NEC-2 is known to be inaccurate where tubes of different diameters meet, and the Leeson correction that EZNEC applies is not there yet: the resonance of such an element can move by a few percent, so a Yagi that was tuned in MMANA can look detuned here;
 - a wire with the radius 0, which MMANA uses as an insulator, is left out;
-- of several sources only the first is taken;
 - a load that is given as a polynomial (the type "S") is left out;
-- the automatic segmentation is the one of this program, equal segments of about a fortieth of a wavelength, where MMANA tapers them;
-- a source or a load at the joint of two wires (`w2b`) sits in the first segment of its wire, half a segment away from the joint. For a trap this moves the resonance by about one percent; more segments on the wires bring it back.
+- the automatic segmentation is the one of this program, described above; MMANA tapers its segments towards bends and ends, and its settings for that are not read.
 
 A `.maa` file does not hold the parameters of a real ground or the range of the sweep. Save the model in the format of the program to keep them.
 

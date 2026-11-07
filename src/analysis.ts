@@ -6,8 +6,19 @@ export interface Cut {
   gain: number[];
 }
 
+/** What a source of the model meets and gives. */
+export interface Port {
+  /** Ohms: resistance and reactance. A source without voltage has none to speak of: `null`. */
+  impedance: [number, number] | null;
+  swr: number | null;
+  /** Watts that the source puts into the antenna; negative when it takes power from the others. */
+  power: number;
+}
+
 export interface Summary {
-  /** Input impedance in ohms: resistance and reactance. */
+  /** Every source of the model, in its order. */
+  ports: Port[];
+  /** The input impedance in ohms and the SWR of the first source that has a voltage. */
   impedance: [number, number];
   swr: number;
   /** Radiated power over input power, or `null` if the engine gave no power budget. */
@@ -112,6 +123,30 @@ function cuts(
   };
 }
 
+/**
+ * The sources of a solution as the model has them. `feeds` holds for every
+ * source of the model the segments that it sits in, numbered over the whole
+ * structure. A source on the joint of two wires is two sources of the engine
+ * in series: their impedances and powers add. A source without voltage has
+ * no record. Without `feeds`, all the sources of the engine are one.
+ */
+export function ports(solution: Solution, reference: number, feeds?: number[][]): Port[] {
+  const groups = feeds ?? [solution.sources.map((record) => record.segment)];
+  return groups.map((segments) => {
+    const records = solution.sources.filter((record) => segments.includes(record.segment));
+    if (records.length === 0) return { impedance: null, swr: null, power: 0 };
+    const impedance = records.reduce<[number, number]>(([r, x], record) => [r + record.impedance[0], x + record.impedance[1]], [0, 0]);
+    return { impedance, swr: swr(impedance, reference), power: records.reduce((total, record) => total + record.power, 0) };
+  });
+}
+
+/** The first source with a voltage, of which the screen shows the impedance. */
+function firstDriven(found: Port[]): Port & { impedance: [number, number]; swr: number } {
+  const port = found.find((one) => one.impedance !== null);
+  if (!port) throw new Error("the solution has no source with a voltage");
+  return port as Port & { impedance: [number, number]; swr: number };
+}
+
 /** The impedance at one frequency of a sweep. */
 export interface SweepPoint {
   /** MHz. */
@@ -120,12 +155,16 @@ export interface SweepPoint {
   swr: number;
 }
 
-/** The points of a sweep from its solutions, one for every frequency. */
-export function sweepPoints(solutions: Solution[], reference: number): SweepPoint[] {
+/**
+ * The points of a sweep from its solutions, one for every frequency: of the
+ * source `which` of the model, or of the first one with a voltage.
+ */
+export function sweepPoints(solutions: Solution[], reference: number, feeds?: number[][], which?: number): SweepPoint[] {
   return solutions.map((solution) => {
-    const [source] = solution.sources;
-    if (!source) throw new Error("a solution of the sweep has no source");
-    return { frequency: solution.frequency, impedance: source.impedance, swr: swr(source.impedance, reference) };
+    const found = ports(solution, reference, feeds);
+    const port = which === undefined ? firstDriven(found) : found[which];
+    if (!port?.impedance) throw new Error("the source of the sweep has no voltage");
+    return { frequency: solution.frequency, impedance: port.impedance, swr: swr(port.impedance, reference) };
   });
 }
 
@@ -162,15 +201,46 @@ export function band(points: SweepPoint[], limit: number): Band {
   return { ...found, edges: [low, high], open: [lowOpen, highOpen] };
 }
 
-/** The numbers of the result screen from a solution of the engine. */
-export function summarize(solution: Solution, reference: number): Summary {
-  const [source] = solution.sources;
+/** A stretch of a sweep where the SWR stays within a limit. */
+export interface Range {
+  /** The edges in MHz. */
+  edges: [number, number];
+  /** An edge at an end of the sweep: the stretch goes on beyond it. */
+  open: [boolean, boolean];
+}
+
+/** Every stretch of a sweep where the SWR is at most `limit`, with its edges between the points. */
+export function bands(points: SweepPoint[], limit: number): Range[] {
+  const found: Range[] = [];
+  const crossing = (inside: SweepPoint, outside: SweepPoint): number =>
+    inside.frequency + ((limit - inside.swr) / (outside.swr - inside.swr)) * (outside.frequency - inside.frequency);
+  let start = -1;
+  for (let i = 0; i <= points.length; i++) {
+    const within = i < points.length && points[i].swr <= limit;
+    if (within && start < 0) start = i;
+    if (!within && start >= 0) {
+      const last = i - 1;
+      found.push({
+        edges: [start === 0 ? points[0].frequency : crossing(points[start], points[start - 1]), i === points.length ? points[last].frequency : crossing(points[last], points[i])],
+        open: [start === 0, i === points.length],
+      });
+      start = -1;
+    }
+  }
+  return found;
+}
+
+/** The numbers of the result screen from a solution of the engine; `feeds` as for `ports`. */
+export function summarize(solution: Solution, reference: number, feeds?: number[][]): Summary {
+  const found = ports(solution, reference, feeds);
+  const first = firstDriven(found);
   const [pattern] = solution.patterns;
-  if (!source || !pattern) throw new Error("the solution has no source or no pattern");
+  if (!pattern) throw new Error("the solution has no pattern");
   const power = solution.power;
   return {
-    impedance: source.impedance,
-    swr: swr(source.impedance, reference),
+    ports: found,
+    impedance: first.impedance,
+    swr: first.swr,
     efficiency: power && power.input > 0 ? power.radiated / power.input : null,
     ...cuts(pattern),
   };
