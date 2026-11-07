@@ -65,7 +65,8 @@ main {
     align-items: start;
   }
   header,
-  .sweep {
+  .sweep,
+  .optimizer {
     grid-column: 1 / -1;
   }
 }
@@ -477,6 +478,34 @@ legend {
   height: 100%;
 }
 
+.view-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.toggle {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.pattern-legend {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.pattern-legend .ramp {
+  flex: 0 0 90px;
+  height: 10px;
+  border-radius: 3px;
+}
+
 .view-bar {
   display: flex;
   justify-content: space-between;
@@ -528,6 +557,14 @@ legend {
 
 .band {
   margin: 12px 0 0;
+}
+
+.goals {
+  margin-top: 12px;
+}
+
+.goals input.number {
+  width: 4.6em;
 }
 
 .chosen-source {

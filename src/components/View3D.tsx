@@ -6,11 +6,14 @@ import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
 import { bounds, farthest, placedWires, roughMarks, type Marks, type Point } from "../geometry";
 import type { Model } from "../model";
+import { PATTERN_RANGE, surface, viridis, type PatternGrid } from "../pattern";
 
 interface Props {
   model: Model;
   /** Where the sources and the loads sit, from the deck of the model; `null` while the model has none. */
   marks: Marks | null;
+  /** The pattern of the results that belong to the model as it is; `null` without such results. */
+  pattern: PatternGrid | null;
 }
 
 /** What the view keeps between two models. */
@@ -21,13 +24,15 @@ interface Stage {
   controls: OrbitControls;
   /** The objects of the model: replaced when it changes. */
   content: THREE.Group;
+  /** The pattern in space: replaced when the results change. */
+  patternGroup: THREE.Group;
   wireMaterial: LineMaterial;
   /** The marks of the sources and of the loads: spheres of radius 1 that are scaled for every picture. */
   markers: THREE.Mesh[];
   /** The request to show everything that the camera has answered; -1 before the first. */
   fitted: number;
-  /** What the camera was last aimed at. */
-  frame: { centre: Point; radius: number; ground: boolean } | null;
+  /** What the camera was last aimed at, and how far the picture reaches from there. */
+  frame: { centre: Point; reach: number; ground: boolean } | null;
   draw: () => void;
 }
 
@@ -54,11 +59,14 @@ function clear(group: THREE.Group) {
 }
 
 /** The antenna in space: drag to turn it, scroll to zoom. The Z axis points up. */
-export function View3D({ model, marks }: Props) {
+export function View3D({ model, marks, pattern }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const stage = useRef<Stage | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [fitRequest, setFitRequest] = useState(0);
+  const [patternWanted, setPatternWanted] = useState(true);
+  const showPattern = pattern !== null && patternWanted;
+  const top = pattern ? Math.max(...pattern.gain) : 0;
   const { ground } = model;
   const wires = placedWires(model);
   const { sources, loads } = marks ?? roughMarks(model);
@@ -83,7 +91,12 @@ export function View3D({ model, marks }: Props) {
     camera.up.set(0, 0, 1);
     const controls = new OrbitControls(camera, renderer.domElement);
     const content = new THREE.Group();
-    scene.add(content);
+    const patternGroup = new THREE.Group();
+    scene.add(content, patternGroup);
+    // Light gives the pattern its shape; the wires and the marks are drawn without it.
+    const light = new THREE.DirectionalLight(0xffffff, 1.6);
+    light.position.set(1, -1.5, 2);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.4), light);
     const wireMaterial = new LineMaterial({ linewidth: 3 });
 
     const draw = () => {
@@ -105,11 +118,12 @@ export function View3D({ model, marks }: Props) {
     });
     resize.observe(element);
 
-    stage.current = { renderer, scene, camera, controls, content, wireMaterial, markers: [], fitted: -1, frame: null, draw };
+    stage.current = { renderer, scene, camera, controls, content, patternGroup, wireMaterial, markers: [], fitted: -1, frame: null, draw };
     return () => {
       resize.disconnect();
       controls.dispose();
       clear(content);
+      clear(patternGroup);
       wireMaterial.dispose();
       renderer.dispose();
       renderer.domElement.remove();
@@ -130,7 +144,9 @@ export function View3D({ model, marks }: Props) {
     // The camera looks at the antenna, and over a ground at the middle of its
     // height, so that the ground under it is in the picture too.
     const aim: Point = [centre[0], centre[1], hasGround ? centre[2] / 2 : centre[2]];
-    const reach = farthest(wires, aim) || radius;
+    // The pattern, when it is shown, is a sphere as large as the antenna around its centre.
+    const patternReach = showPattern ? Math.hypot(centre[0] - aim[0], centre[1] - aim[1], centre[2] - aim[2]) + radius : 0;
+    const reach = Math.max(farthest(wires, aim) || radius, patternReach);
 
     const positions = wires.flatMap((wire) => [wire.x1, wire.y1, wire.z1, wire.x2, wire.y2, wire.z2]);
     if (positions.length > 0) {
@@ -189,12 +205,12 @@ export function View3D({ model, marks }: Props) {
     const another =
       !frame ||
       frame.ground !== hasGround ||
-      radius > frame.radius * 1.3 ||
-      radius < frame.radius / 1.3 ||
-      Math.hypot(centre[0] - frame.centre[0], centre[1] - frame.centre[1], centre[2] - frame.centre[2]) > frame.radius * 0.3;
+      reach > frame.reach * 1.3 ||
+      reach < frame.reach / 1.3 ||
+      Math.hypot(centre[0] - frame.centre[0], centre[1] - frame.centre[1], centre[2] - frame.centre[2]) > frame.reach * 0.3;
     if (current.fitted !== fitRequest || another) {
       current.fitted = fitRequest;
-      current.frame = { centre, radius, ground: hasGround };
+      current.frame = { centre, reach, ground: hasGround };
       const target = new THREE.Vector3(...aim);
       const distance = (reach / Math.sin(THREE.MathUtils.degToRad(FIELD_OF_VIEW / 2))) * 1.15;
       // The direction of the view stays as the user turned it.
@@ -211,7 +227,40 @@ export function View3D({ model, marks }: Props) {
     draw();
     // The keys stand for the wires and the marks: the effect runs when the values change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wiresKey, marksKey, ground.kind, fitRequest]);
+  }, [wiresKey, marksKey, ground.kind, fitRequest, showPattern]);
+
+  // The pattern in space, around the centre of the antenna.
+  useEffect(() => {
+    const current = stage.current;
+    if (!current) return;
+    clear(current.patternGroup);
+    if (pattern && showPattern) {
+      const { centre, radius } = bounds(wires);
+      const shape = surface(pattern, centre, radius);
+      // The colour map is in sRGB; the renderer works in linear colours.
+      const colour = new THREE.Color();
+      const colors: number[] = [];
+      for (let i = 0; i < shape.colors.length; i += 3) {
+        colour.setRGB(shape.colors[i], shape.colors[i + 1], shape.colors[i + 2], THREE.SRGBColorSpace);
+        colors.push(colour.r, colour.g, colour.b);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(shape.positions, 3));
+      geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+      geometry.setIndex(shape.indices);
+      geometry.computeVertexNormals();
+      const material = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
+      current.patternGroup.add(new THREE.Mesh(geometry, material));
+    }
+    current.draw();
+    // The wires give the centre and the size of the pattern.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pattern, showPattern, wiresKey]);
+
+  // The colours of the legend, from the bottom of the range to the maximum.
+  const legend = `linear-gradient(to right, ${[0, 0.25, 0.5, 0.75, 1]
+    .map((part) => `rgb(${viridis(part).map((value) => Math.round(value * 255)).join(" ")})`)
+    .join(", ")})`;
 
   if (unavailable) return <p className="note">Тривимірний вигляд недоступний у цьому браузері.</p>;
   return (
@@ -223,10 +272,27 @@ export function View3D({ model, marks }: Props) {
           {sources.length > 0 && <span className="mark source-mark">{sources.length > 1 ? "джерела" : "джерело"}</span>}
           {loads.length > 0 && <span className="mark load-mark">навантаження</span>}
         </span>
-        <button type="button" className="quiet" onClick={() => setFitRequest((count) => count + 1)}>
-          Показати все
-        </button>
+        <span className="view-actions">
+          {pattern && (
+            <label className="toggle">
+              <input type="checkbox" checked={patternWanted} onChange={(event) => setPatternWanted(event.target.checked)} />
+              Діаграма
+            </label>
+          )}
+          <button type="button" className="quiet" onClick={() => setFitRequest((count) => count + 1)}>
+            Показати все
+          </button>
+        </span>
       </div>
+      {showPattern && (
+        <p className="pattern-legend">
+          <span className="ramp" style={{ background: legend }} aria-hidden="true" />
+          <span>
+            Підсилення: від {(top - PATTERN_RANGE).toFixed(0)} до {top.toFixed(1)} дБі. Відстань від центру й колір — у тій самій шкалі, що й
+            плоскі діаграми.
+          </span>
+        </p>
+      )}
     </div>
   );
 }

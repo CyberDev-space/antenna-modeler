@@ -1,16 +1,19 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { summarize, type Summary } from "./analysis";
 import { LoadTable } from "./components/LoadTable";
+import { OptimizerPanel } from "./components/OptimizerPanel";
 import { Results } from "./components/Results";
 import { Settings } from "./components/Settings";
 import { SourceTable } from "./components/SourceTable";
 import { SweepPanel } from "./components/SweepPanel";
 import { WireTable } from "./components/WireTable";
-import { buildDeck, exportDeck } from "./deck";
+import type { Output } from "nec2-wasm";
+import { buildDeck, exportDeck, type Deck } from "./deck";
 import { solve, type Failure } from "./engine";
 import { download, encodeAnsi, fileName, openModel, readText, restoreModel, saveModel } from "./files";
 import { exportMaa } from "./maa";
 import { defaultModel, formatPulse, resultKey, type Model } from "./model";
+import type { PatternGrid } from "./pattern";
 
 // The view in space brings a large library: it is loaded after the page.
 const View3D = lazy(() => import("./components/View3D").then((module) => ({ default: module.View3D })));
@@ -44,6 +47,7 @@ interface Solved {
   /** The places of the sources, to name them. */
   sources: string[];
   summary: Summary;
+  pattern: PatternGrid;
   warnings: string[];
   report: string;
   milliseconds: number;
@@ -97,6 +101,25 @@ export function App() {
     setFileNote({ title: `Збережено ${name}`, notes });
   }
 
+  /** Shows the results of a model: of the button, or of the optimizer. */
+  function present(solvedModel: Model, solvedDeck: Deck, output: Output, milliseconds: number) {
+    const solution = output.jobs[0].solutions[0];
+    const [pattern] = solution.patterns;
+    setFailure(null);
+    setSolved({
+      model: resultKey(solvedModel),
+      reference: solvedModel.reference,
+      overGround: solvedModel.ground.kind !== "free",
+      lossy: solvedModel.wireConductivity > 0 || solvedModel.loads.length > 0,
+      sources: solvedModel.sources.map((source) => formatPulse(source.at)),
+      summary: summarize(solution, solvedModel.reference, solvedDeck.feeds),
+      pattern: { theta: pattern.theta, phi: pattern.phi, gain: pattern.gainTotal },
+      warnings: output.warnings,
+      report: output.report,
+      milliseconds,
+    });
+  }
+
   async function compute() {
     setRunning(true);
     setFailure(null);
@@ -108,17 +131,7 @@ export function App() {
         setSolved(null);
         return;
       }
-      setSolved({
-        model: key,
-        reference: model.reference,
-        overGround: model.ground.kind !== "free",
-        lossy: model.wireConductivity > 0 || model.loads.length > 0,
-        sources: model.sources.map((source) => formatPulse(source.at)),
-        summary: summarize(output.jobs[0].solutions[0], model.reference, deck.feeds),
-        warnings: output.warnings,
-        report: output.report,
-        milliseconds: performance.now() - started,
-      });
+      present(model, deck, output, performance.now() - started);
     } catch (error) {
       setFailure({ model: key, lines: ["Розрахунок не вдався:", String(error)] });
       setSolved(null);
@@ -202,7 +215,7 @@ export function App() {
       <section className="view" aria-label="Вигляд">
         <h2>Вигляд</h2>
         <Suspense fallback={<p className="note">Завантажую…</p>}>
-          <View3D model={model} marks={deck.marks} />
+          <View3D model={model} marks={deck.marks} pattern={solved && !stale ? solved.pattern : null} />
         </Suspense>
       </section>
       </div>
@@ -243,6 +256,15 @@ export function App() {
       </section>
 
       <SweepPanel model={model} onChange={setModel} />
+
+      <OptimizerPanel
+        model={model}
+        onBetter={(better, evaluation) => {
+          setModel(better);
+          present(better, evaluation.deck, evaluation.output, evaluation.milliseconds);
+        }}
+        onRestore={setModel}
+      />
     </main>
   );
 }

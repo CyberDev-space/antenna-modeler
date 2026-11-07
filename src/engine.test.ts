@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { band, summarize, sweepPoints } from "./analysis";
 import { buildDeck, buildSweepDeck, exportDeck } from "./deck";
 import { importMaa } from "./maa";
+import { optimize, read } from "./optimizer";
 import { COPPER, defaultModel, type Load, type Model } from "./model";
 
 // The page runs the engine in a worker; here it runs in the test itself.
@@ -287,5 +288,25 @@ describe("a phased array through the engine", () => {
     expect(summary.ports[0].power + summary.ports[1].power).toBeCloseTo(input, 12);
     const reversed = solveArray(hb9cv(-135)).summary;
     expect(summary.frontToBack! - reversed.frontToBack!).toBeGreaterThan(5);
+  });
+});
+
+describe("the optimizer through the engine", () => {
+  it("brings a dipole to resonance", async () => {
+    const dipole: Model = { ...defaultModel, ground: { ...defaultModel.ground, kind: "free" } };
+    const evaluate = async (model: Model) => {
+      const deck = buildDeck(model);
+      if (deck.errors.length > 0) return null;
+      const output = run(deck.text);
+      return output.error ? null : { summary: summarize(output.jobs[0].solutions[0], model.reference, deck.feeds) };
+    };
+    const length = { kind: "length", wire: 0, min: 9, max: 11.5, step: 0.1 } as const;
+    const goals = { gain: 0, frontToBack: 0, swr: 0, reactance: 1, elevation: 0, target: 0 };
+    const outcome = await optimize(dipole, [length], goals, evaluate, () => {}, () => false);
+    expect(outcome.reason).toBe("converged");
+    expect(Math.abs(outcome.evaluation.summary.impedance[1])).toBeLessThan(1);
+    // A half-wave dipole of thin wire resonates a few percent short of half a wavelength.
+    expect(read(outcome.model, length)).toBeGreaterThan(9.9);
+    expect(read(outcome.model, length)).toBeLessThan(10.5);
   });
 });
