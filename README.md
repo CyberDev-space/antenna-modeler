@@ -49,7 +49,7 @@ EN
 | Charts | uPlot for sweeps, our own SVG for polar patterns and the Smith chart |
 | Format | our own JSON; import and export of `.maa` and `.nec`; a link that holds a model |
 | Tests | Vitest; reference results from nec2c |
-| License | not chosen yet: an engine of our own under MIT does not oblige the program to the GPL |
+| License | MIT, like the engine |
 
 At first the engine was to be the ready-made package [`@necpp-engine/wasm`](https://www.npmjs.com/package/@necpp-engine/wasm) (NEC2++, GPL). On 2026-11-21 it was decided to write an engine of our own instead: a port of the public-domain nec2c to Rust. The code of NEC2++ and xnec2c is not read for it. The rules are in [PROVENANCE.md](https://github.com/CyberDev-space/nec2-rs/blob/main/PROVENANCE.md) of nec2-rs.
 
