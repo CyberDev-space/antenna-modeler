@@ -1,8 +1,10 @@
-import { lazy, Suspense, useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { summarize, type Summary } from "./analysis";
 import { LoadTable } from "./components/LoadTable";
 import { OptimizerPanel } from "./components/OptimizerPanel";
-import { Results } from "./components/Results";
+import { Card } from "./components/Card";
+import { PrintSheet, type SheetSweep } from "./components/PrintSheet";
+import { PatternCards, SummaryTiles } from "./components/Results";
 import { Settings } from "./components/Settings";
 import { SourceTable } from "./components/SourceTable";
 import { SweepPanel } from "./components/SweepPanel";
@@ -12,7 +14,7 @@ import { buildDeck, exportDeck, type Deck } from "./deck";
 import { solve, type Failure } from "./engine";
 import { download, encodeAnsi, fileName, openModel, readText, restoreModel, saveModel } from "./files";
 import { exportMaa } from "./maa";
-import { defaultModel, formatPulse, resultKey, type Model } from "./model";
+import { defaultModel, formatPulse, resultKey, sweepKey, type Model } from "./model";
 import type { PatternGrid } from "./pattern";
 
 // The view in space brings a large library: it is loaded after the page.
@@ -38,6 +40,15 @@ interface FileNote {
   failed?: boolean;
 }
 
+/** The tabs of the workspace. */
+const TABS = [
+  ["view", "Вигляд і діаграми"],
+  ["sweep", "Розгортка"],
+  ["optimizer", "Оптимізація"],
+  ["report", "Звіт NEC-2"],
+] as const;
+type Tab = (typeof TABS)[number][0];
+
 interface Solved {
   /** The model that these results belong to, as text, to tell when they are out of date. */
   model: string;
@@ -59,6 +70,8 @@ export function App() {
   const [running, setRunning] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [fileNote, setFileNote] = useState<FileNote | null>(null);
+  const [tab, setTab] = useState<Tab>("view");
+  const [lastSweep, setLastSweep] = useState<(SheetSweep & { key: string }) | null>(null);
 
   async function open(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -140,24 +153,51 @@ export function App() {
     }
   }
 
+  // Ctrl+Enter computes from anywhere on the page.
+  const computeRef = useRef(compute);
+  computeRef.current = compute;
+  const canCompute = !running && deck.errors.length === 0;
+  useEffect(() => {
+    const press = (event: KeyboardEvent) => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && canCompute) {
+        event.preventDefault();
+        void computeRef.current();
+      }
+    };
+    window.addEventListener("keydown", press);
+    return () => window.removeEventListener("keydown", press);
+  }, [canCompute]);
+
   const stale = solved !== null && solved.model !== key;
+
+  /** The sheet for building, as PDF through the dialog of printing; results that are out of date are computed first. */
+  async function printSheet() {
+    if ((!solved || stale) && canCompute) await compute();
+    // The sheet shows the new results once the page has drawn them.
+    setTimeout(() => window.print(), 200);
+  }
   // A failure says nothing about a model that was changed since.
   const problems = deck.errors.length > 0 ? deck.errors : failure?.model === key ? failure.lines : null;
 
   return (
-    <main>
-      <header>
-        <h1>Моделювання антен</h1>
-        <p>Дротяні антени на ядрі NEC-2 з реальною землею.</p>
-      </header>
-
-      <div className="column">
-      <section className="model" aria-label="Модель">
-        <div className="file-bar">
-          <label className="field name">
-            <span>Назва</span>
-            <input type="text" className="text" value={model.name} onChange={(event) => setModel({ ...model, name: event.target.value })} />
-          </label>
+    <>
+    <div className="app">
+      <header className="topbar">
+        <div className="brand">
+          <h1>Моделювання антен</h1>
+          <span>NEC-2 з реальною землею</span>
+        </div>
+        <label className="name-field">
+          <span className="sr-only">Назва моделі</span>
+          <input
+            type="text"
+            className="text"
+            placeholder="Назва моделі"
+            value={model.name}
+            onChange={(event) => setModel({ ...model, name: event.target.value })}
+          />
+        </label>
+        <div className="file-actions">
           <label className="button">
             Відкрити
             <input type="file" accept=".maa,.json" onChange={open} />
@@ -166,10 +206,10 @@ export function App() {
             Зберегти
           </button>
           <button type="button" title="Файл антени для MMANA" onClick={() => save("maa")}>
-            Експорт .maa
+            .maa
           </button>
           <button type="button" title="Картки NEC-2 для інших програм" onClick={() => save("nec")} disabled={deck.errors.length > 0}>
-            Експорт .nec
+            .nec
           </button>
           <button
             type="button"
@@ -182,6 +222,15 @@ export function App() {
             Приклад
           </button>
         </div>
+        <button type="button" onClick={printSheet} title="Аркуш для виготовлення: креслення, розміри, труби, результати, діаграми. У вікні друку виберіть «Зберегти як PDF».">
+          PDF
+        </button>
+        <button type="button" className="primary compute" onClick={compute} disabled={!canCompute} title="Ctrl+Enter">
+          {running ? "Рахую…" : "Розрахувати"}
+        </button>
+      </header>
+
+      <aside className="editor" aria-label="Модель">
         {fileNote && (
           <ul className={fileNote.failed ? "messages errors" : "messages opened"}>
             <li>{fileNote.title}</li>
@@ -190,19 +239,6 @@ export function App() {
             ))}
           </ul>
         )}
-
-        <h2>Дроти</h2>
-        <WireTable wires={model.wires} segments={deck.segments} onChange={(wires) => setModel({ ...model, wires })} />
-        <h2>Джерела</h2>
-        <SourceTable sources={model.sources} onChange={(sources) => setModel({ ...model, sources })} />
-        <h2>Навантаження</h2>
-        <LoadTable loads={model.loads} onChange={(loads) => setModel({ ...model, loads })} />
-        <Settings model={model} onChange={setModel} />
-        <div className="actions">
-          <button type="button" className="primary" onClick={compute} disabled={running || deck.errors.length > 0}>
-            {running ? "Рахую…" : "Розрахувати"}
-          </button>
-        </div>
         {deck.warnings.length > 0 && (
           <ul className="messages warnings">
             {deck.warnings.map((warning) => (
@@ -210,61 +246,112 @@ export function App() {
             ))}
           </ul>
         )}
-      </section>
+        <h2>Дроти</h2>
+        <WireTable wires={model.wires} segments={deck.segments} onChange={(wires) => setModel({ ...model, wires })} />
+        <h2>Джерела</h2>
+        <SourceTable sources={model.sources} onChange={(sources) => setModel({ ...model, sources })} />
+        <h2>Навантаження</h2>
+        <LoadTable loads={model.loads} onChange={(loads) => setModel({ ...model, loads })} />
+        <h2>Частота, земля, матеріал</h2>
+        <Settings model={model} onChange={setModel} />
+      </aside>
 
-      <section className="view" aria-label="Вигляд">
-        <h2>Вигляд</h2>
-        <Suspense fallback={<p className="note">Завантажую…</p>}>
-          <View3D model={model} marks={deck.marks} pattern={solved && !stale ? solved.pattern : null} />
-        </Suspense>
-      </section>
-      </div>
+      <main className="workspace">
+        <section className={stale ? "results-strip stale" : "results-strip"} aria-label="Результати" aria-live="polite">
+          {problems && (
+            <ul className="messages errors">
+              {problems.map((problem) => (
+                <li key={problem}>{problem}</li>
+              ))}
+            </ul>
+          )}
+          {!solved && !problems && <p className="note">Натисніть «Розрахувати» або Ctrl+Enter.</p>}
+          {solved && (
+            <>
+              {stale && <p className="note">Модель змінено: ці результати належать попередній.</p>}
+              <SummaryTiles summary={solved.summary} sources={solved.sources} reference={solved.reference} lossy={solved.lossy} />
+              {solved.warnings.length > 0 && (
+                <ul className="messages warnings">
+                  {solved.warnings.map((warning) => (
+                    <li key={warning}>Ядро: {warning}</li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </section>
 
-      <section className="results" aria-label="Результати" aria-live="polite">
-        <h2>Результати</h2>
-        {problems && (
-          <ul className="messages errors">
-            {problems.map((problem) => (
-              <li key={problem}>{problem}</li>
-            ))}
-          </ul>
-        )}
-        {!solved && !problems && <p className="note">Натисніть «Розрахувати».</p>}
-        {solved && (
-          <div className={stale ? "stale" : undefined}>
-            {stale && <p className="note">Модель змінено: ці результати належать попередній.</p>}
-            <Results
-              summary={solved.summary}
-              sources={solved.sources}
-              reference={solved.reference}
-              overGround={solved.overGround}
-              lossy={solved.lossy}
-            />
-            {solved.warnings.length > 0 && (
-              <ul className="messages warnings">
-                {solved.warnings.map((warning) => (
-                  <li key={warning}>Ядро: {warning}</li>
-                ))}
-              </ul>
-            )}
-            <details>
-              <summary>Звіт NEC-2 ({solved.milliseconds.toFixed(0)} мс)</summary>
+        <nav className="tabs" role="tablist" aria-label="Робоча область">
+          {TABS.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              id={`tab-${id}`}
+              aria-selected={tab === id}
+              aria-controls={`panel-${id}`}
+              className={tab === id ? "tab active" : "tab"}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        {/* Every panel stays mounted, so that a sweep, the optimizer and the camera keep their state. */}
+        <div className="tab-panel view-panel" role="tabpanel" id="panel-view" aria-labelledby="tab-view" hidden={tab !== "view"}>
+          <Card title="Вигляд" className="view-card">
+            <Suspense fallback={<p className="note">Завантажую…</p>}>
+              <View3D model={model} marks={deck.marks} pattern={solved && !stale ? solved.pattern : null} />
+            </Suspense>
+          </Card>
+          {solved ? (
+            <div className={stale ? "patterns stale" : "patterns"}>
+              <PatternCards summary={solved.summary} overGround={solved.overGround} />
+            </div>
+          ) : (
+            <div className="patterns empty">
+              <p className="note">Діаграми спрямованості з'являться після розрахунку.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="tab-panel" role="tabpanel" id="panel-sweep" aria-labelledby="tab-sweep" hidden={tab !== "sweep"}>
+          <SweepPanel model={model} onChange={setModel} onResult={setLastSweep} />
+        </div>
+
+        <div className="tab-panel scroll" role="tabpanel" id="panel-optimizer" aria-labelledby="tab-optimizer" hidden={tab !== "optimizer"}>
+          <OptimizerPanel
+            model={model}
+            onBetter={(better, evaluation) => {
+              setModel(better);
+              present(better, evaluation.deck, evaluation.output, evaluation.milliseconds);
+            }}
+            onRestore={setModel}
+          />
+        </div>
+
+        <div className="tab-panel report-panel" role="tabpanel" id="panel-report" aria-labelledby="tab-report" hidden={tab !== "report"}>
+          {solved ? (
+            <>
+              <p className="note">Звіт ядра NEC-2 за останнім розрахунком ({solved.milliseconds.toFixed(0)} мс).</p>
               <pre>{solved.report}</pre>
-            </details>
-          </div>
-        )}
-      </section>
+            </>
+          ) : (
+            <p className="note">Звіт з'явиться після розрахунку.</p>
+          )}
+        </div>
+      </main>
+    </div>
 
-      <SweepPanel model={model} onChange={setModel} />
-
-      <OptimizerPanel
-        model={model}
-        onBetter={(better, evaluation) => {
-          setModel(better);
-          present(better, evaluation.deck, evaluation.output, evaluation.milliseconds);
-        }}
-        onRestore={setModel}
-      />
-    </main>
+    {/* Outside the application, which printing hides. */}
+    <PrintSheet
+      model={model}
+      deck={deck}
+      results={solved}
+      stale={stale}
+      sweep={lastSweep && lastSweep.key === sweepKey(model) ? lastSweep : null}
+    />
+    </>
   );
 }

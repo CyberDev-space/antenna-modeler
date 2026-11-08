@@ -3,12 +3,12 @@ import { useRef, useState } from "react";
 import { summarize, type Summary } from "../analysis";
 import { buildDeck, type Deck } from "../deck";
 import { solve } from "../engine";
+import { element } from "../geometry";
 import type { Model } from "../model";
 import {
   check,
   defaultGoals,
   describe,
-  element,
   optimize,
   read,
   score,
@@ -180,7 +180,6 @@ export function OptimizerPanel({ model, onBetter, onRestore }: Props) {
 
   return (
     <section className="optimizer" aria-label="Оптимізація">
-      <h2>Оптимізація</h2>
       <p className="note">
         Оптимізатор по черзі змінює кожну величину на крок в обидва боки й лишає те, що покращує бал; коли не допомагає жоден крок, кроки
         зменшуються вдвічі. Елемент — це дріт разом із дротами, що продовжують його в одну лінію; кінці інших дротів, приєднані до нього,

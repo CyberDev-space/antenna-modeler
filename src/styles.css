@@ -34,8 +34,8 @@
     --error: #ff9a9a;
     --error-surface: #331a1c;
     --grid: #3a4454;
-    --trace: #5aa9f5;
-    --trace-b: #f5a35a;
+    --trace: #3f8ad6;
+    --trace-b: #cf7a32;
     --trace-c: #5fd08f;
   }
 }
@@ -50,50 +50,109 @@ body {
   color: var(--ink);
 }
 
-main {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 16px;
+/* On a wide screen the page is an application: it fills the window, and
+   only the editor and the panels of the workspace scroll. */
+.app {
   display: grid;
-  gap: 16px;
   grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
 }
 
-@media (min-width: 1040px) {
-  main {
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-    align-items: start;
+@media (min-width: 1100px) {
+  .app {
+    height: 100vh;
+    height: 100dvh;
+    grid-template-columns: clamp(460px, 34vw, 640px) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
   }
-  header,
-  .sweep,
-  .optimizer {
+  .topbar {
     grid-column: 1 / -1;
   }
+  .editor {
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .workspace {
+    min-height: 0;
+  }
+  .tab-panel {
+    flex: 1;
+    min-height: 0;
+  }
 }
 
-.column {
-  display: grid;
-  gap: 16px;
-  /* The column may be narrower than the table of wires, which then scrolls. */
-  grid-template-columns: minmax(0, 1fr);
-  min-width: 0;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
-header h1 {
-  margin: 0;
-  font-size: 1.5rem;
-}
-
-header p {
-  margin: 2px 0 0;
-  color: var(--muted);
-}
-
-section {
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 12px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 16px;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.brand span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.name-field {
+  flex: 1 1 220px;
+}
+
+.name-field input {
+  width: 100%;
+}
+
+.file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.topbar button,
+.topbar label.button {
+  margin-top: 0;
+}
+
+.editor,
+.results-strip,
+.card,
+.optimizer {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.editor,
+.optimizer {
+  padding: 12px 14px;
+}
+
+.optimizer > .note:first-child {
+  margin-top: 0;
 }
 
 h2 {
@@ -101,28 +160,172 @@ h2 {
   font-size: 1.05rem;
 }
 
-.model h2 {
-  margin-top: 18px;
+.editor h2 {
+  margin: 18px 0 8px;
+  font-size: 0.95rem;
 }
 
-.file-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: end;
+.editor > h2:first-of-type {
+  margin-top: 6px;
 }
 
-.file-bar .name {
-  flex: 1 1 100%;
-}
-
-.file-bar .name input {
-  width: 100%;
-}
-
-.file-bar button,
-.file-bar label.button {
+.editor > .messages:first-child {
   margin-top: 0;
+}
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.results-strip {
+  padding: 10px 12px;
+}
+
+.results-strip .note:first-child,
+.results-strip .messages:first-child {
+  margin-top: 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  margin: 0;
+  padding: 7px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+  background: none;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tab.active {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+}
+
+.tab-panel {
+  position: relative;
+}
+
+.tab-panel[hidden] {
+  display: none !important;
+}
+
+.tab-panel.scroll,
+.report-panel {
+  overflow: auto;
+}
+
+/* The antenna on the left, the two cuts of its pattern on the right. */
+.view-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.view-card .card-body {
+  min-height: 380px;
+}
+
+.patterns {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+}
+
+.patterns.empty {
+  place-items: center;
+  min-height: 120px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+
+@media (min-width: 1100px) {
+  .view-panel {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+  .view-card .card-body {
+    min-height: 0;
+  }
+  .patterns {
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px 10px 10px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.card-head h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+button.icon {
+  margin: 0;
+  padding: 1px 8px;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+/* A card spread over the workspace, or over the window on a narrow screen. */
+.card.expanded {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
+}
+
+@media (max-width: 1099px) {
+  .card.expanded {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    border-radius: 0;
+  }
+}
+
+.report-panel pre {
+  max-height: none;
 }
 
 .loads button {
@@ -385,15 +588,16 @@ legend {
 }
 
 .stale .summary,
-.stale .plots,
-.stale .charts,
-.stale .band {
+.stale .ports,
+.patterns.stale .card,
+.sweep-result.stale .charts,
+.sweep-result.stale .band {
   opacity: 0.5;
 }
 
 .summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 8px;
   margin: 0;
 }
@@ -413,30 +617,50 @@ legend {
   margin: 2px 0 0;
   font-size: 1.15rem;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.plots {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 8px;
-  margin-top: 12px;
+  white-space: nowrap;
 }
 
 .plot {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
   margin: 0;
 }
 
-.plot figcaption {
-  font-size: 0.85rem;
-  color: var(--muted);
+/* The drawing fills a box whose size comes from the layout, never from the drawing. */
+.plot-body,
+.chart-body {
+  position: relative;
+  flex: 1;
+  min-height: 220px;
 }
 
-.plot svg {
+.plot-body svg,
+.chart-body svg {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
-  max-width: 340px;
-  margin: 0 auto;
+  height: 100%;
+}
+
+.readout.overlay {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  z-index: 1;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.caption {
+  white-space: nowrap;
 }
 
 .ring,
@@ -456,15 +680,23 @@ legend {
 .ring-label,
 .axis-label {
   fill: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .axis-label {
-  font-size: 11px;
+  font-size: 12px;
+}
+
+.view3d {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .view3d .canvas {
-  height: 320px;
+  flex: 1;
+  min-height: 260px;
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
@@ -567,11 +799,6 @@ legend {
   width: 4.6em;
 }
 
-.chosen-source {
-  margin-top: 12px;
-  max-width: 14em;
-}
-
 .ports {
   min-width: 0;
   margin-top: 12px;
@@ -586,21 +813,57 @@ legend {
   padding: 0 6px 4px;
 }
 
+/* The sweep: its range on top, then the two charts one above the other, sharing the frequency axis. */
+.sweep {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+}
+
+.sweep-controls {
+  margin-top: 0;
+}
+
+.sweep-result {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.sweep .band {
+  margin: 0;
+}
+
 .charts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 12px;
-  margin-top: 8px;
+  flex: 1;
+  grid-template-rows: auto auto;
+  gap: 10px;
+  min-height: 0;
+}
+
+@media (min-width: 1100px) {
+  .charts {
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
 
 .chart {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
   margin: 0;
 }
 
 .chart figcaption {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 4px 12px;
   font-size: 0.85rem;
   color: var(--muted);
@@ -631,9 +894,7 @@ legend {
   background: var(--trace-b);
 }
 
-.chart svg {
-  display: block;
-  width: 100%;
+.chart-body svg {
   touch-action: pan-y;
 }
 
@@ -711,4 +972,221 @@ pre {
   border-radius: 8px;
   background: var(--page);
   font-size: 11.5px;
+}
+
+/* The sheet for building: hidden on the screen, alone on paper. It keeps
+   its own light colours, so that it prints the same in the dark theme. */
+.print-sheet {
+  display: none;
+  --page: #ffffff;
+  --surface: #ffffff;
+  --ink: #111111;
+  --muted: #4a5564;
+  --line: #c9d0da;
+  --grid: #c9d0da;
+  --trace: #0b6bcb;
+  --trace-b: #c2570c;
+  background: #ffffff;
+  color: var(--ink);
+  font-size: 10pt;
+}
+
+/* A look at the sheet on the screen, as it will print. */
+body.sheet-preview .app {
+  display: none;
+}
+
+body.sheet-preview .print-sheet {
+  display: block;
+  max-width: 210mm;
+  margin: 12px auto;
+  padding: 14mm 12mm;
+}
+
+.plan-wire {
+  stroke: #1b2330;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.plan-source {
+  fill: #c2570c;
+}
+
+.plan-load {
+  fill: #1a7f4b;
+}
+
+.plan-label {
+  fill: #1b2330;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.plan-scale line {
+  stroke: #1b2330;
+  stroke-width: 1.2;
+}
+
+.plan-scale text {
+  fill: #5f6b7a;
+  font-size: 11px;
+}
+
+.sheet-head h1 {
+  margin: 0;
+  font-size: 18pt;
+}
+
+.sheet-head p {
+  margin: 2pt 0 8pt;
+  color: var(--muted);
+}
+
+.print-sheet h2 {
+  margin: 12pt 0 4pt;
+  font-size: 12pt;
+  break-after: avoid;
+}
+
+.sheet-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12pt;
+}
+
+.sheet-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2pt 10pt;
+  margin: 0;
+}
+
+.sheet-facts dt {
+  color: var(--muted);
+}
+
+.sheet-facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.sheet-warning {
+  color: #a4262c;
+  font-weight: 600;
+}
+
+.plan {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 90mm;
+  border: 0.5pt solid var(--line);
+}
+
+.sheet-small {
+  margin: 2pt 0 0;
+  color: var(--muted);
+  font-size: 8.5pt;
+}
+
+.sheet-table {
+  width: 100%;
+  min-width: 0;
+  margin-top: 2pt;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+
+.sheet-table.narrow {
+  width: auto;
+}
+
+.sheet-table th,
+.sheet-table td {
+  padding: 2pt 6pt;
+  border-bottom: 0.5pt solid var(--line);
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.sheet-table tr {
+  break-inside: avoid;
+}
+
+.sheet-break {
+  break-inside: avoid;
+}
+
+.sheet-plots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10pt;
+}
+
+.sheet-plots figure,
+.sheet-chart {
+  margin: 0;
+  break-inside: avoid;
+}
+
+.sheet-plots figcaption,
+.sheet-chart > figcaption {
+  color: var(--muted);
+  font-size: 9pt;
+}
+
+.print-sheet .plot-body,
+.print-sheet .chart-body {
+  position: static;
+  min-height: 0;
+}
+
+.print-sheet .plot-body svg,
+.print-sheet .chart-body svg {
+  position: static;
+  width: 100%;
+  height: auto;
+}
+
+.print-sheet .readout.overlay {
+  display: none;
+}
+
+.sheet-notes {
+  margin: 2pt 0 0;
+  padding-left: 14pt;
+  font-size: 9pt;
+}
+
+.sheet-foot {
+  margin-top: 14pt;
+  padding-top: 4pt;
+  border-top: 0.5pt solid var(--line);
+  color: var(--muted);
+  font-size: 8pt;
+}
+
+@page {
+  size: A4;
+  margin: 14mm 12mm;
+}
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  .app {
+    display: none !important;
+  }
+
+  .print-sheet {
+    display: block;
+  }
 }

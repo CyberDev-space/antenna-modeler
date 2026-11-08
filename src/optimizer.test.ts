@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Summary } from "./analysis";
 import { defaultModel, type Model, type Wire } from "./model";
-import { apply, check, defaultGoals, element, optimize, read, score, type Goals, type Setting } from "./optimizer";
+import { element } from "./geometry";
+import { apply, check, defaultGoals, optimize, read, score, type Goals, type Setting } from "./optimizer";
 
 const wire = (ends: number[], radius = 0.001): Wire => {
   const [x1, y1, z1, x2, y2, z2] = ends;

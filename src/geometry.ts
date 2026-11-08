@@ -60,3 +60,64 @@ export function bounds(wires: Wire[]): { centre: Point; radius: number } {
   const radius = Math.max(...ends.map((end) => Math.hypot(end[0] - centre[0], end[1] - centre[1], end[2] - centre[2])));
   return { centre, radius: radius > 0 ? radius : 1 };
 }
+
+
+const ends = (wire: Wire): [Point, Point] => [
+  [wire.x1, wire.y1, wire.z1],
+  [wire.x2, wire.y2, wire.z2],
+];
+const distance = (p: Point, q: Point): number => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+const length = (wire: Wire): number => distance(...ends(wire));
+
+/** Wire ends closer than this part of the shorter wire are one point. */
+const JOINED = 1e-6;
+
+/** A wire of an element, and whether it runs against the element. */
+export interface Link {
+  wire: number;
+  reversed: boolean;
+}
+
+/**
+ * The wires that make one straight element with the wire `index`: wires in
+ * one line joined end to end, in order from one end of the element to the
+ * other. A wire that meets no other in its line is an element of its own.
+ */
+export function element(wires: Wire[], index: number): Link[] {
+  const chain: Link[] = [{ wire: index, reversed: false }];
+  const used = new Set([index]);
+  const direction = (wire: Wire): Point => {
+    const [a, b] = ends(wire);
+    const size = distance(a, b);
+    return [(b[0] - a[0]) / size, (b[1] - a[1]) / size, (b[2] - a[2]) / size];
+  };
+  const line = direction(wires[index]);
+  /** The next wire in the line at a point, if exactly one goes on from there. */
+  const following = (at: Point, from: number): Link | null => {
+    const found: Link[] = [];
+    wires.forEach((wire, other) => {
+      if (used.has(other) || !(length(wire) > 0)) return;
+      const [a, b] = ends(wire);
+      const near = JOINED * Math.min(length(wire), length(wires[from]));
+      const [atStart, atEnd] = [distance(a, at) <= near, distance(b, at) <= near];
+      if (!atStart && !atEnd) return;
+      const d = direction(wire);
+      if (Math.abs(Math.abs(d[0] * line[0] + d[1] * line[1] + d[2] * line[2]) - 1) > 1e-6) return;
+      found.push({ wire: other, reversed: atEnd });
+    });
+    return found.length === 1 ? found[0] : null;
+  };
+  const far = (link: Link): Point => ends(wires[link.wire])[link.reversed ? 0 : 1];
+  const near = (link: Link): Point => ends(wires[link.wire])[link.reversed ? 1 : 0];
+  // Onwards from the end of the wire, then backwards from its beginning.
+  for (let next = following(far(chain[0]), index); next; next = following(far(chain.at(-1)!), chain.at(-1)!.wire)) {
+    chain.push(next);
+    used.add(next.wire);
+  }
+  for (let next = following(near(chain[0]), index); next; next = following(near(chain[0]), chain[0].wire)) {
+    // Seen from the front of the chain, the wire is walked the other way.
+    chain.unshift({ wire: next.wire, reversed: !next.reversed });
+    used.add(next.wire);
+  }
+  return chain;
+}

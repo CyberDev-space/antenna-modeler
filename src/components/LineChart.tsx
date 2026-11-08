@@ -1,5 +1,6 @@
 import { useState, type PointerEvent } from "react";
 import { ticks } from "../ticks";
+import { useSize } from "../useSize";
 
 export interface Series {
   name: string;
@@ -23,18 +24,19 @@ interface Props {
   format: (value: number) => string;
 }
 
-const WIDTH = 520;
-const HEIGHT = 250;
-const LEFT = 46;
+const LEFT = 52;
 const RIGHT = 12;
 const TOP = 10;
 const BOTTOM = 26;
 
 const megahertz = (value: number): string => Number(value.toFixed(3)).toString();
 
-/** A chart of one or two quantities against frequency, with a readout under the pointer. */
+/** A chart of one or two quantities against frequency, with a readout under the pointer. It fills the space it is given. */
 export function LineChart({ title, x, series, range, guides = [], marker, format }: Props) {
   const [hover, setHover] = useState<number | null>(null);
+  const [host, size] = useSize<HTMLDivElement>();
+  const WIDTH = size.width || 520;
+  const HEIGHT = size.height || 250;
 
   const values = series.flatMap((one) => one.values).filter(Number.isFinite);
   let [low, high] = range ?? [Math.min(...values), Math.max(...values)];
@@ -62,7 +64,6 @@ export function LineChart({ title, x, series, range, guides = [], marker, format
   return (
     <figure className="chart">
       <figcaption>
-        <span>{title}</span>
         <span className="readout">
           {hover !== null && `${megahertz(x[hover])} МГц `}
           {series.map((one) => (
@@ -73,15 +74,18 @@ export function LineChart({ title, x, series, range, guides = [], marker, format
           ))}
         </span>
       </figcaption>
+      <div className="chart-body" ref={host}>
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        width={WIDTH}
+        height={HEIGHT}
         role="img"
         aria-label={title}
         onPointerMove={move}
         onPointerDown={move}
         onPointerLeave={() => setHover(null)}
       >
-        {ticks(low, high).map((mark) => (
+        {ticks(low, high, Math.max(3, Math.round(HEIGHT / 55))).map((mark) => (
           <g key={mark}>
             <line className={mark === 0 ? "zero" : "grid"} x1={LEFT} x2={WIDTH - RIGHT} y1={py(mark)} y2={py(mark)} />
             <text className="tick" x={LEFT - 6} y={py(mark) + 3} textAnchor="end">
@@ -89,7 +93,7 @@ export function LineChart({ title, x, series, range, guides = [], marker, format
             </text>
           </g>
         ))}
-        {ticks(first, last, 6).map((mark) => (
+        {ticks(first, last, Math.max(4, Math.round(WIDTH / 110))).map((mark) => (
           <g key={mark}>
             <line className="grid" x1={px(mark)} x2={px(mark)} y1={TOP} y2={HEIGHT - BOTTOM} />
             <text className="tick" x={px(mark)} y={HEIGHT - BOTTOM + 14} textAnchor="middle">
@@ -121,6 +125,7 @@ export function LineChart({ title, x, series, range, guides = [], marker, format
           </g>
         )}
       </svg>
+      </div>
     </figure>
   );
 }

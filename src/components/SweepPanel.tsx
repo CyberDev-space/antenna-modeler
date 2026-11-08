@@ -1,15 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Solution } from "nec2-wasm";
 import { band, bands, sweepPoints, type Range } from "../analysis";
 import { buildSweepDeck } from "../deck";
 import { solve, type Failure } from "../engine";
 import { formatPulse, sweepKey, type Model } from "../model";
+import type { SheetSweep } from "./PrintSheet";
+import { Card } from "./Card";
 import { LineChart } from "./LineChart";
 import { NumberField } from "./NumberField";
 
 interface Props {
   model: Model;
   onChange: (model: Model) => void;
+  /** Hears of the points of the last sweep, with the model they belong to as text, for the printed sheet. */
+  onResult?: (result: (SheetSweep & { key: string }) | null) => void;
 }
 
 interface Swept {
@@ -48,7 +52,7 @@ function bandsText(ranges: Range[]): string {
 }
 
 /** The sweep over frequency: its range, and charts of the SWR and of the impedance. */
-export function SweepPanel({ model, onChange }: Props) {
+export function SweepPanel({ model, onChange, onResult }: Props) {
   const [swept, setSwept] = useState<Swept | null>(null);
   const [running, setRunning] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -92,20 +96,41 @@ export function SweepPanel({ model, onChange }: Props) {
   const stale = swept !== null && swept.model !== modelText;
   const which = swept && chosen !== null && swept.driven[chosen] ? chosen : swept ? swept.driven.indexOf(true) : 0;
   const points = swept ? sweepPoints(swept.solutions, swept.reference, swept.feeds, which) : [];
+  useEffect(() => {
+    onResult?.(
+      swept && points.length > 0
+        ? { key: swept.model, points, reference: swept.reference, frequency: swept.frequency, source: swept.sources.length > 1 ? swept.sources[which] : null }
+        : null,
+    );
+    // The points follow from the sweep and the chosen source.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swept, which]);
   const found = swept && band(points, LIMIT);
   const frequencies = points.map((point) => point.frequency);
   const top = swept ? Math.min(10, Math.max(3, Math.ceil(Math.max(...points.map((point) => point.swr))))) : 3;
 
   return (
-    <section className="sweep" aria-label="Розгортка за частотою" aria-live="polite">
-      <h2>Розгортка за частотою</h2>
-      <div className="settings">
+    <div className="sweep" aria-live="polite">
+      <div className="settings sweep-controls">
         <NumberField label="Від, МГц" value={model.sweep.from} onChange={(from) => setSweep({ from })} />
         <NumberField label="До, МГц" value={model.sweep.to} onChange={(to) => setSweep({ to })} />
         <NumberField label="Точок" value={model.sweep.points} onChange={(points) => setSweep({ points: Math.round(points) })} />
         <button type="button" className="primary" onClick={sweep} disabled={running || deck.errors.length > 0}>
           {running ? "Рахую…" : "Розгорнути"}
         </button>
+        {swept && swept.sources.length > 1 && (
+          <label className="field">
+            <span>Джерело на графіках</span>
+            <select value={which} onChange={(event) => setChosen(Number(event.target.value))}>
+              {swept.sources.map((place, index) => (
+                <option key={index} value={index} disabled={!swept.driven[index]}>
+                  {index + 1}: {place}
+                  {swept.driven[index] ? "" : " (без напруги)"}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
       {problems && (
         <ul className="messages errors">
@@ -114,27 +139,16 @@ export function SweepPanel({ model, onChange }: Props) {
           ))}
         </ul>
       )}
+      {!swept && !problems && <p className="note">Задайте межі й натисніть «Розгорнути»: програма порахує КСХ і вхідний опір на кожній частоті.</p>}
       {swept && found && (
-        <div className={stale ? "stale" : undefined}>
+        <div className={stale ? "sweep-result stale" : "sweep-result"}>
           {stale && <p className="note">Модель змінено: ці графіки належать попередній.</p>}
-          {swept.sources.length > 1 && (
-            <label className="field chosen-source">
-              <span>Джерело на графіках</span>
-              <select value={which} onChange={(event) => setChosen(Number(event.target.value))}>
-                {swept.sources.map((place, index) => (
-                  <option key={index} value={index} disabled={!swept.driven[index]}>
-                    {index + 1}: {place}
-                    {swept.driven[index] ? "" : " (без напруги)"}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
           <p className="band">
             Найменший КСХ {found.swr.toFixed(2)} на {megahertz(found.best)} МГц.{" "}
             {bandsText(bands(points, LIMIT))}
           </p>
           <div className="charts">
+            <Card title={`КСХ (${swept.reference} Ом)`}>
             <LineChart
               title={`КСХ (${swept.reference} Ом)`}
               x={frequencies}
@@ -144,6 +158,8 @@ export function SweepPanel({ model, onChange }: Props) {
               marker={swept.frequency}
               format={(value) => (Number.isFinite(value) ? value.toFixed(2) : "∞")}
             />
+            </Card>
+            <Card title="Вхідний опір, Ом">
             <LineChart
               title="Вхідний опір, Ом"
               x={frequencies}
@@ -154,12 +170,13 @@ export function SweepPanel({ model, onChange }: Props) {
               marker={swept.frequency}
               format={(value) => value.toFixed(1).replace("-", "−")}
             />
+            </Card>
           </div>
           <p className="note">
             {points.length} частот за {swept.milliseconds.toFixed(0)} мс. Вертикальна риска: частота моделі.
           </p>
         </div>
       )}
-    </section>
+    </div>
   );
 }
