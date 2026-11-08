@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { bounds, farthest, placedWires, roughMarks, type Point } from "./geometry";
+import { bounds, farthest, feedPoint, placedWires, roughMarks, type Point } from "./geometry";
 import { defaultModel, type Load, type Model, type Wire } from "./model";
 
 const wire = (ends: number[]): Wire => {
@@ -46,4 +46,15 @@ it("finds how far the wires reach from a point", () => {
   expect(farthest(wires, [0, 0, 0])).toBe(6);
   expect(farthest(wires, [4, 0, 3])).toBe(5);
   expect(farthest([], [1, 2, 3])).toBe(0);
+});
+
+it("puts the pattern at the feed point, or between the sources that drive the antenna", () => {
+  const centre: Point = [1, 0, 10];
+  expect(feedPoint([[0, 0, 10]], [true], centre)).toEqual([0, 0, 10]);
+  // A phased pair: the middle of its two feed points.
+  expect(feedPoint([[0, 0, 10], [2, 0, 10]], [true, true], centre)).toEqual([1, 0, 10]);
+  // A source without voltage feeds nothing.
+  expect(feedPoint([[0, 0, 10], [2, 0, 10]], [true, false], centre)).toEqual([0, 0, 10]);
+  expect(feedPoint([], [], centre)).toEqual(centre);
+  expect(feedPoint([[0, 0, 10]], [false], centre)).toEqual(centre);
 });

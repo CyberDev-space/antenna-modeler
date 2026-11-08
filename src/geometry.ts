@@ -61,6 +61,17 @@ export function bounds(wires: Wire[]): { centre: Point; radius: number } {
   return { centre, radius: radius > 0 ? radius : 1 };
 }
 
+/**
+ * The point that the pattern in space comes out of: the feed point, or the
+ * middle of the sources that have a voltage when there are several, as in a
+ * phased array; `otherwise` when none is known.
+ */
+export function feedPoint(sources: Point[], driven: boolean[], otherwise: Point): Point {
+  const fed = sources.filter((_, index) => driven[index] ?? true);
+  if (fed.length === 0) return otherwise;
+  return [0, 1, 2].map((axis) => fed.reduce((sum, point) => sum + point[axis], 0) / fed.length) as Point;
+}
+
 
 const ends = (wire: Wire): [Point, Point] => [
   [wire.x1, wire.y1, wire.z1],
