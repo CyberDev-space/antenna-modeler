@@ -73,13 +73,15 @@ export function View3D({ model, marks, pattern }: Props) {
   const { sources, loads } = marks ?? roughMarks(model);
   const marksKey = JSON.stringify([sources, loads]);
   const wiresKey = JSON.stringify(wires);
-  // The pattern comes out of the feed point, as large as the antenna.
+  // The pattern comes out of the feed point, and its maximum reaches as far
+  // as the part of the antenna farthest from there: over a whole Yagi.
   const origin = feedPoint(
     sources,
     model.sources.map((source) => source.voltage !== 0),
     bounds(wires).centre,
   );
-  const originKey = JSON.stringify(origin);
+  const patternSize = farthest(wires, origin) || bounds(wires).radius;
+  const originKey = JSON.stringify([origin, patternSize]);
 
   // The renderer, the camera and the controls live as long as the view.
   useEffect(() => {
@@ -152,8 +154,8 @@ export function View3D({ model, marks, pattern }: Props) {
     // The camera looks at the antenna, and over a ground at the middle of its
     // height, so that the ground under it is in the picture too.
     const aim: Point = [centre[0], centre[1], hasGround ? centre[2] / 2 : centre[2]];
-    // The pattern, when it is shown, is a sphere as large as the antenna around the feed point.
-    const patternReach = showPattern ? Math.hypot(origin[0] - aim[0], origin[1] - aim[1], origin[2] - aim[2]) + radius : 0;
+    // The pattern, when it is shown, stays within a sphere around the feed point.
+    const patternReach = showPattern ? Math.hypot(origin[0] - aim[0], origin[1] - aim[1], origin[2] - aim[2]) + patternSize : 0;
     const reach = Math.max(farthest(wires, aim) || radius, patternReach);
 
     const positions = wires.flatMap((wire) => [wire.x1, wire.y1, wire.z1, wire.x2, wire.y2, wire.z2]);
@@ -243,7 +245,7 @@ export function View3D({ model, marks, pattern }: Props) {
     if (!current) return;
     clear(current.patternGroup);
     if (pattern && showPattern) {
-      const shape = surface(pattern, origin, bounds(wires).radius);
+      const shape = surface(pattern, origin, patternSize);
       // The colour map is in sRGB; the renderer works in linear colours.
       const colour = new THREE.Color();
       const colors: number[] = [];
@@ -299,8 +301,8 @@ export function View3D({ model, marks, pattern }: Props) {
         <p className="pattern-legend">
           <span className="ramp" style={{ background: legend }} aria-hidden="true" />
           <span>
-            Підсилення: від {(top - PATTERN_RANGE).toFixed(0)} до {top.toFixed(1)} дБі. Відстань від центру й колір — у тій самій шкалі, що й
-            плоскі діаграми.
+            Підсилення: від {(top - PATTERN_RANGE).toFixed(0)} до {top.toFixed(1)} дБі. Відстань від точки живлення й колір — у тій самій
+            шкалі, що й плоскі діаграми; максимум сягає найдальшої від неї точки антени.
           </span>
         </p>
       )}
