@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildDeck, buildSweepDeck, exportDeck } from "./deck";
+import { equivalentCylinder } from "./leeson";
 import { loadImpedance } from "./loads";
 import { defaultModel, formatPulse, parsePulse, type Load, type Model, type Wire } from "./model";
 import { segmentCount, wavelength } from "./segmentation";
@@ -373,16 +374,98 @@ describe("several sources", () => {
 });
 
 describe("tubes of different radii in one line", () => {
-  it("are warned about, as NEC-2 is inaccurate at their steps", () => {
-    const tube = (y1: number, y2: number, radius: number) => wire({ y1, y2, radius });
-    const tapered = buildDeck({ ...defaultModel, wires: [tube(-5.18, -1, 0.01), tube(-1, 1, 0.015), tube(1, 5.18, 0.01)], sources: [{ at: { wire: 1, place: "c" }, phase: 0, voltage: 1 }] });
-    expect(tapered.errors).toEqual([]);
-    expect(tapered.warnings).toEqual([
-      "Труби різного діаметра стикуються на одній осі (дроти 1 і 2 і ще 1). NEC-2 на таких стиках неточний: резонанс елемента може зсунутися на відсотки. Поправки Лісона, якою це виправляє EZNEC, тут ще немає.",
+  const tube = (y1: number, y2: number, radius: number) => wire({ y1, y2, radius });
+  const fed = (at: Model["sources"][number]["at"]) => [{ at, phase: 0, voltage: 1 }];
+  // A dipole of three tubes, fed in the middle of its centre tube, half a wavelength long at 14.15 MHz.
+  const tapered: Model = { ...defaultModel, wires: [tube(-5.18, -1, 0.01), tube(-1, 1, 0.015), tube(1, 5.18, 0.01)], sources: fed({ wire: 1, place: "c" }) };
+  const cards = (deck: { text: string }, kind: string) => deck.text.split("\n").filter((card) => card.startsWith(`${kind} `));
+  const step = (words: string) =>
+    `Труби різного діаметра стикуються на одній осі (дроти 1 і 2${words}). NEC-2 на таких стиках неточний: резонанс елемента може зсунутися на відсотки.`;
+
+  it("become Leeson's equivalent cylinder, one wire around the same centre", () => {
+    const deck = buildDeck(tapered);
+    expect(deck.errors).toEqual([]);
+    expect(deck.warnings).toEqual([]);
+    const cylinder = equivalentCylinder([{ length: 1, radius: 0.015 }, { length: 4.18, radius: 0.01 }])!;
+    expect(deck.equivalents).toHaveLength(1);
+    const [equivalent] = deck.equivalents;
+    expect(equivalent.wires).toEqual([0, 1, 2]);
+    expect(equivalent.length).toBeCloseTo(2 * cylinder.halfLength, 9);
+    expect(equivalent.radius).toBeCloseTo(cylinder.radius, 12);
+    // The wire is named after the centre tube; the tubes have no segments of their own.
+    const [card] = cards(deck, "GW");
+    expect(cards(deck, "GW")).toHaveLength(1);
+    const [, tag, count, x1, y1, z1, x2, y2, z2, radius] = card.split(" ").map(Number);
+    expect([tag, count]).toEqual([2, equivalent.segments]);
+    expect(count % 2).toBe(1);
+    expect([x1, z1, x2, z2]).toEqual([0, 10, 0, 10]);
+    expect(y1).toBeCloseTo(-cylinder.halfLength, 9);
+    expect(y2).toBeCloseTo(cylinder.halfLength, 9);
+    expect(radius).toBeCloseTo(cylinder.radius, 9);
+    expect(deck.segments).toEqual([0, 0, 0]);
+    // The source stays in the centre.
+    expect(cards(deck, "EX")).toEqual([`EX 0 2 ${(count + 1) / 2} 0 1 0`]);
+    expect(deck.feeds).toEqual([[(count + 1) / 2]]);
+    deck.marks!.sources[0].forEach((value, i) => expect(value).toBeCloseTo([0, 0, 10][i], 9));
+    // The deck says what it did, also to other programs; the sweep gets the same wire.
+    const tidy = (value: number) => Number(value.toPrecision(10));
+    expect(cards(deck, "CM")[1]).toBe(`CM Leeson equivalent of wires 1-3: length ${tidy(equivalent.length)} m, radius ${tidy(equivalent.radius)} m`);
+    expect(cards(exportDeck(tapered), "CM")[1]).toBe(cards(deck, "CM")[1]);
+    expect(cards(buildSweepDeck(tapered), "GW")).toEqual([card]);
+  });
+
+  it("are fed on the joint in the middle of a centre tube of two wires", () => {
+    const split: Model = {
+      ...tapered,
+      wires: [tube(-5.18, -1, 0.01), tube(-1, 0, 0.015), tube(0, 1, 0.015), tube(1, 5.18, 0.01)],
+      sources: fed({ wire: 1, place: "e" }),
+    };
+    const deck = buildDeck(split);
+    expect(deck.warnings).toEqual([]);
+    expect(deck.equivalents.map((one) => one.wires)).toEqual([[0, 1, 2, 3]]);
+    // The same element as before, under the number of a wire of its centre tube.
+    const [card] = cards(deck, "GW");
+    expect(card.split(" ").slice(2)).toEqual(cards(buildDeck(tapered), "GW")[0].split(" ").slice(2));
+    expect(card.split(" ")[1]).toBe("3");
+    expect(cards(deck, "EX")).toHaveLength(1);
+  });
+
+  it("keep their tubes and a warning when the correction is off", () => {
+    const deck = buildDeck({ ...tapered, taperCorrection: false });
+    expect(deck.equivalents).toEqual([]);
+    expect(cards(deck, "GW").map((card) => card.split(" ")[1])).toEqual(["1", "2", "3"]);
+    expect(deck.warnings).toEqual([`${step(" і ще 1")} Поправку Лісона, яка це виправляє, вимкнено.`]);
+  });
+
+  it("keep their tubes where the method does not hold, and say why", () => {
+    const why = (model: Model): string[] => {
+      const deck = buildDeck(model);
+      expect(deck.equivalents).toEqual([]);
+      return deck.warnings;
+    };
+    const left = (reason: string) =>
+      `Елемент з дротів 1–3: поправку Лісона не застосовано, бо ${reason}. NEC-2 на стиках труб неточний: резонанс елемента може зсунутися на відсотки.`;
+    expect(why({ ...tapered, loads: [{ kind: "rx", at: { wire: 0, place: "c" }, resistance: 10, reactance: 0 }] })).toEqual([
+      left("на ньому стоїть навантаження"),
     ]);
+    expect(why({ ...tapered, sources: fed({ wire: 1, place: "c", offset: 1 }) })).toEqual([left("джерело стоїть не в центрі елемента")]);
+    expect(why({ ...tapered, sources: fed({ wire: 0, place: "c" }) })).toEqual([left("джерело стоїть не в центрі елемента")]);
+    // A wire joined at a step between the tubes: a match, a feed line, a boom.
+    expect(why({ ...tapered, wires: [...tapered.wires, wire({ y1: -1, y2: -1, z1: 10, z2: 9 })] })).toEqual([left("до нього приєднано інші дроти")]);
+    // Far from resonance the method does not hold.
+    const short = tapered.wires.map((one) => ({ ...one, y1: one.y1 / 2, y2: one.y2 / 2 }));
+    expect(why({ ...tapered, wires: short })).toEqual([left("його довжина 0,24 λ: поправка розрахована на елементи довжиною 0,4–0,6 λ")]);
+  });
+
+  it("are warned about where no element of the method is", () => {
+    // Two tubes that differ from side to side.
+    const lopsided = buildDeck({ ...defaultModel, wires: [tube(-5.18, 0, 0.01), tube(0, 5.18, 0.015)] });
+    expect(lopsided.equivalents).toEqual([]);
+    expect(lopsided.warnings).toEqual([`${step("")} Поправка Лісона діє лише на прямі елементи, симетричні щодо центру.`]);
     // One radius, or a bend, is no step.
     const even = buildDeck({ ...defaultModel, wires: [tube(-5.18, 0, 0.001), tube(0, 5.18, 0.001)] });
     expect(even.warnings).toEqual([]);
+    expect(even.equivalents).toEqual([]);
     const bent = buildDeck({ ...defaultModel, wires: [tube(-5.18, 0, 0.001), wire({ y1: 0, y2: 0, z1: 10, z2: 15, radius: 0.01 })] });
     expect(bent.warnings).toEqual([]);
   });

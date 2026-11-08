@@ -1,11 +1,15 @@
 import { useState } from "react";
+import { span, type Equivalent } from "../deck";
 import { ALUMINIUM, COPPER, type GroundKind, type Model } from "../model";
+import { taperedElements } from "../taper";
 import { Hint } from "./Help";
 import { NumberField } from "./NumberField";
 
 interface Props {
   model: Model;
   onChange: (model: Model) => void;
+  /** The elements of tubes that the engine gets as Leeson's equivalent cylinders. */
+  equivalents: Equivalent[];
 }
 
 const GROUNDS: [GroundKind, string][] = [
@@ -26,7 +30,7 @@ const toMega = (value: number): number => Number((value / 1e6).toPrecision(12));
 const fromMega = (value: number): number => Number((value * 1e6).toPrecision(12));
 
 /** Frequency, feed line, material of the wires and ground. */
-export function Settings({ model, onChange }: Props) {
+export function Settings({ model, onChange, equivalents }: Props) {
   const named = MATERIALS.some(([conductivity]) => conductivity === model.wireConductivity);
   // The conductivity that the user chose to give as a number: it stays the
   // user's own also when its value is that of a metal.
@@ -67,6 +71,24 @@ export function Settings({ model, onChange }: Props) {
             onChange({ ...model, wireConductivity: fromMega(value) });
           }}
         />
+      )}
+
+      {taperedElements(model.wires).length > 0 && (
+        <div className="taper-correction">
+          <label className="toggle">
+            <input type="checkbox" checked={model.taperCorrection} onChange={(event) => onChange({ ...model, taperCorrection: event.target.checked })} />
+            <Hint topic="taperCorrection">Поправка Лісона для труб різного діаметра</Hint>
+          </label>
+          {model.taperCorrection && equivalents.length > 0 && (
+            <ul>
+              {equivalents.map((one) => (
+                <li key={one.wires.join(" ")}>
+                  Дроти {span(one.wires)}: рівний дріт {one.length.toFixed(3)} м, Ø {(2000 * one.radius).toFixed(2)} мм
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       <fieldset>

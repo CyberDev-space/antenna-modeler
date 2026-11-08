@@ -369,6 +369,8 @@ export function importMaa(text: string, base: Model): Imported {
       ground,
       height,
       wireConductivity: material?.[1] ?? 0,
+      // MMANA knows no such correction: the choice of the user stays.
+      taperCorrection: base.taperCorrection,
       reference: reference > 0 ? reference : base.reference,
       sweep,
     },

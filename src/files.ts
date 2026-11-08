@@ -78,7 +78,8 @@ export function restoreModel(value: unknown): Model | null {
   if (!wires || !sources || sources.length === 0 || !loads || !scalars || !sweep || !groundValues) return null;
   if (kind !== "free" && kind !== "perfect" && kind !== "real") return null;
   const ground: Ground = { kind, ...groundValues };
-  return { name: typeof value.name === "string" ? value.name : "", wires, sources, loads, ...scalars, ground, sweep };
+  const taperCorrection = typeof value.taperCorrection === "boolean" ? value.taperCorrection : defaultModel.taperCorrection;
+  return { name: typeof value.name === "string" ? value.name : "", wires, sources, loads, ...scalars, taperCorrection, ground, sweep };
 }
 
 /** The text of a file of this program for a model. */

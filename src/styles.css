@@ -990,6 +990,19 @@ pre {
   font-size: 0.77rem;
 }
 
+/* The switch of Leeson's correction, with what it replaced. */
+.taper-correction {
+  flex-basis: 100%;
+}
+
+.taper-correction ul {
+  margin: 4px 0 0;
+  padding-left: 1.6em;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Lines of text stay short enough to read on a wide screen. */
 p.note,
 p.band,

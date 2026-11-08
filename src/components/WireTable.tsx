@@ -1,3 +1,4 @@
+import type { Equivalent } from "../deck";
 import type { Wire } from "../model";
 import { Hint } from "./Help";
 import { NumberField } from "./NumberField";
@@ -6,6 +7,8 @@ interface Props {
   wires: Wire[];
   /** The number of segments that the program uses for every wire, if the model is sound. */
   segments: number[];
+  /** The elements of tubes that the engine gets as one wire each. */
+  equivalents: Equivalent[];
   onChange: (wires: Wire[]) => void;
 }
 
@@ -15,7 +18,8 @@ const COORDINATES = ["x1", "y1", "z1", "x2", "y2", "z2"] as const;
 const millimetres = (metres: number): number => Number((metres * 1000).toPrecision(10));
 
 /** The table of wires, as in MMANA: ends in metres, radius in millimetres. */
-export function WireTable({ wires, segments, onChange }: Props) {
+export function WireTable({ wires, segments, equivalents, onChange }: Props) {
+  const replaced = new Set(equivalents.flatMap((one) => one.wires));
   const update = (index: number, change: Partial<Wire>) =>
     onChange(wires.map((wire, i) => (i === index ? { ...wire, ...change } : wire)));
   const add = () => {
@@ -72,7 +76,13 @@ export function WireTable({ wires, segments, onChange }: Props) {
                   value={wire.segments}
                   onChange={(value) => update(index, { segments: Math.round(value) })}
                 />
-                {wire.segments <= 0 && segments[index] !== undefined && <span className="auto">{segments[index]}</span>}
+                {replaced.has(index) ? (
+                  <Hint topic="taperCorrection">
+                    <span className="auto">Л</span>
+                  </Hint>
+                ) : (
+                  wire.segments <= 0 && segments[index] !== undefined && <span className="auto">{segments[index]}</span>
+                )}
               </td>
               <td>
                 <button

@@ -92,6 +92,11 @@ export interface Model {
   height: number;
   /** Conductivity of the wires in S/m; 0 stands for wires without loss. */
   wireConductivity: number;
+  /**
+   * Whether the engine gets every element of tubes of several diameters that
+   * the method suits as Leeson's equivalent cylinder, one uniform wire.
+   */
+  taperCorrection: boolean;
   /** Impedance of the feed line in ohms, for the SWR. */
   reference: number;
   sweep: Sweep;
@@ -111,6 +116,7 @@ export const defaultModel: Model = {
   ground: { kind: "real", permittivity: 13, conductivity: 0.005 },
   height: 0,
   wireConductivity: 0,
+  taperCorrection: true,
   reference: 50,
   sweep: { from: 13.6, to: 14.7, points: 23 },
 };

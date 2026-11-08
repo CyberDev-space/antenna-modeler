@@ -267,13 +267,13 @@ export function App() {
           </ul>
         )}
         <h2>Дроти</h2>
-        <WireTable wires={model.wires} segments={deck.segments} onChange={(wires) => setModel({ ...model, wires })} />
+        <WireTable wires={model.wires} segments={deck.segments} equivalents={deck.equivalents} onChange={(wires) => setModel({ ...model, wires })} />
         <h2>Джерела</h2>
         <SourceTable sources={model.sources} onChange={(sources) => setModel({ ...model, sources })} />
         <h2>Навантаження</h2>
         <LoadTable loads={model.loads} onChange={(loads) => setModel({ ...model, loads })} />
         <h2>Частота, земля, матеріал</h2>
-        <Settings model={model} onChange={setModel} />
+        <Settings model={model} onChange={setModel} equivalents={deck.equivalents} />
       </aside>
 
       <main className="workspace">

@@ -1,7 +1,9 @@
 import { placedWires, type Marks, type Point } from "./geometry";
+import { equivalentCylinder } from "./leeson";
 import { loadImpedance } from "./loads";
-import { pulseSegment, type Load, type Model } from "./model";
+import { pulseSegment, type Load, type Model, type Pulse, type Wire } from "./model";
 import { joinEnds, layout, segmentCount, wavelength, wireLength } from "./segmentation";
+import { taperedElements, type TaperedElement } from "./taper";
 
 /** Steps of the pattern in degrees. Over a ground only the upper half is computed, on a finer grid. */
 export const PHI_STEP = 5;
@@ -25,6 +27,19 @@ export interface Deck {
   errors: string[];
   /** What the user should know about the model. */
   warnings: string[];
+  /** The elements of tubes that the engine gets as Leeson's equivalent cylinders. */
+  equivalents: Equivalent[];
+}
+
+/** An element of tubes of several diameters that the engine gets as one uniform wire, Leeson's equivalent cylinder. */
+export interface Equivalent {
+  /** Its wires in the model, by index from 0. */
+  wires: number[];
+  /** The length and the radius of the wire that replaces them, in metres. */
+  length: number;
+  radius: number;
+  /** The segments of that wire. */
+  segments: number;
 }
 
 const number = (value: number): string => String(Number(value.toPrecision(10)));
@@ -66,6 +81,168 @@ function radiusSteps(wires: Model["wires"]): [number, number][] {
   return steps;
 }
 
+/** Leeson's method is made for elements near resonance: between these lengths in wavelengths. */
+const LEESON_RANGE: [number, number] = [0.4, 0.6];
+
+const SHAPES_ONLY = "Поправка Лісона діє лише на прямі елементи, симетричні щодо центру.";
+
+const endsOf = (wire: Wire): [Point, Point] => [
+  [wire.x1, wire.y1, wire.z1],
+  [wire.x2, wire.y2, wire.z2],
+];
+const distance = (p: Point, q: Point): number => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+const middle = (p: Point, q: Point): Point => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
+
+/** Whether a point lies on the straight piece between two points, within a distance. */
+function onPiece(point: Point, a: Point, b: Point, within: number): boolean {
+  const axis: Point = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const square = axis[0] ** 2 + axis[1] ** 2 + axis[2] ** 2;
+  const t = Math.min(1, Math.max(0, ((point[0] - a[0]) * axis[0] + (point[1] - a[1]) * axis[1] + (point[2] - a[2]) * axis[2]) / square));
+  return distance(point, [a[0] + t * axis[0], a[1] + t * axis[1], a[2] + t * axis[2]]) <= within;
+}
+
+/** Wire numbers from indices: "1–5" for a run, "1, 2, 7" otherwise. */
+export function span(indices: number[], dash = "–"): string {
+  const numbers = [...indices].sort((a, b) => a - b).map((index) => index + 1);
+  const run = numbers.length > 2 && numbers.every((value, k) => k === 0 || value === numbers[k - 1] + 1);
+  return run ? `${numbers[0]}${dash}${numbers.at(-1)}` : numbers.join(", ");
+}
+
+/** The point of a wire that a pulse names, if it names one without an offset. */
+function pulsePoint(wires: Wire[], at: Pulse): Point | null {
+  if ((at.offset ?? 0) !== 0) return null;
+  const [start, end] = endsOf(wires[at.wire]);
+  return at.place === "b" ? start : at.place === "e" ? end : middle(start, end);
+}
+
+/**
+ * Why Leeson's method does not suit a tapered element, in words that follow
+ * "because"; `null` when it suits. The method knows an unloaded straight
+ * element near its resonance, fed at its centre or not at all.
+ */
+function obstacle({ sources, loads }: Model, wires: Wire[], element: TaperedElement, lambda: number): string | null {
+  const members = new Set(element.wires);
+  if (loads.some((load) => members.has(load.at.wire))) return "на ньому стоїть навантаження";
+  const [a, b] = element.ends;
+  const length = distance(a, b);
+  const fed = sources.filter((source) => members.has(source.at.wire));
+  if (fed.length > 1) return "на ньому кілька джерел";
+  if (fed.length === 1) {
+    const point = pulsePoint(wires, fed[0].at);
+    if (!point || distance(point, middle(a, b)) > 1e-6 * length) return "джерело стоїть не в центрі елемента";
+  }
+  if (wires.some((wire, index) => !members.has(index) && endsOf(wire).some((end) => onPiece(end, a, b, 1e-6 * length)))) {
+    return "до нього приєднано інші дроти";
+  }
+  const electrical = length / lambda;
+  if (electrical < LEESON_RANGE[0] || electrical > LEESON_RANGE[1]) {
+    return `його довжина ${electrical.toFixed(2).replace(".", ",")} λ: поправка розрахована на елементи довжиною 0,4–0,6 λ`;
+  }
+  return null;
+}
+
+/** The wires that the engine gets, and how they stand for the wires of the model. */
+interface Substitution {
+  /** The wires of the model, with every corrected element replaced by one wire where its first wire was. */
+  wires: Wire[];
+  /** The number of the wire of the model that names each of them, from 1: its tag in the cards. */
+  tags: number[];
+  /** For every wire of the model, the wire of the engine that holds it. */
+  holder: number[];
+  /** Which wires of the model belong to a corrected element. */
+  replaced: boolean[];
+  /** The corrected elements: their wires in the model and the wire of the engine that replaces them. */
+  chosen: { wires: number[]; index: number }[];
+  /** A place on the wires of the model as a place on the wires of the engine. */
+  remap: (at: Pulse) => Pulse;
+  /** What the user should know about the steps of radius that stay. */
+  warnings: string[];
+}
+
+/**
+ * Replaces every tapered element that Leeson's method suits by its
+ * equivalent cylinder: one uniform wire with the same centre and axis. A
+ * source of such an element is at its centre, and stays there.
+ */
+function substitute(model: Model, wires: Wire[], lambda: number): Substitution {
+  const warnings: string[] = [];
+  const steps = radiusSteps(wires);
+  const candidates = taperedElements(wires);
+  const words = (list: [number, number][]): string => {
+    const more = list.length > 1 ? ` і ще ${list.length - 1}` : "";
+    return `Труби різного діаметра стикуються на одній осі (дроти ${list[0][0]} і ${list[0][1]}${more}). NEC-2 на таких стиках неточний: резонанс елемента може зсунутися на відсотки.`;
+  };
+  const chosen: { element: TaperedElement; wire: Wire }[] = [];
+  if (!model.taperCorrection) {
+    if (steps.length > 0) warnings.push(`${words(steps)} ${candidates.length > 0 ? "Поправку Лісона, яка це виправляє, вимкнено." : SHAPES_ONLY}`);
+  } else {
+    const inside = new Set(candidates.flatMap((element) => element.wires));
+    const outside = steps.filter(([a, b]) => !(inside.has(a - 1) && inside.has(b - 1)));
+    if (outside.length > 0) warnings.push(`${words(outside)} ${SHAPES_ONLY}`);
+    for (const element of candidates) {
+      const reason = obstacle(model, wires, element, lambda);
+      const cylinder = reason ? null : equivalentCylinder(element.half);
+      if (!cylinder) {
+        warnings.push(
+          `Елемент з дротів ${span(element.wires, "–")}: поправку Лісона не застосовано, бо ${reason ?? "метод не дає для нього тонкого циліндра"}. NEC-2 на стиках труб неточний: резонанс елемента може зсунутися на відсотки.`,
+        );
+        continue;
+      }
+      const [a, b] = element.ends;
+      const length = distance(a, b);
+      const centre = middle(a, b);
+      const along = cylinder.halfLength / length;
+      const offset: Point = [(b[0] - a[0]) * along, (b[1] - a[1]) * along, (b[2] - a[2]) * along];
+      chosen.push({
+        element,
+        wire: {
+          x1: centre[0] - offset[0],
+          y1: centre[1] - offset[1],
+          z1: centre[2] - offset[2],
+          x2: centre[0] + offset[0],
+          y2: centre[1] + offset[1],
+          z2: centre[2] + offset[2],
+          radius: cylinder.radius,
+          segments: -1,
+        },
+      });
+    }
+  }
+
+  const owner = new Map<number, number>();
+  chosen.forEach(({ element }, k) => element.wires.forEach((wire) => owner.set(wire, k)));
+  const work: Wire[] = [];
+  const tags: number[] = [];
+  const holder: number[] = [];
+  const at: number[] = [];
+  wires.forEach((wire, index) => {
+    const k = owner.get(index);
+    if (k === undefined) {
+      holder[index] = work.length;
+      work.push(wire);
+      tags.push(index + 1);
+      return;
+    }
+    if (at[k] === undefined) {
+      // The wire of an element is named after its middle wire, the centre tube.
+      const members = chosen[k].element.wires;
+      at[k] = work.length;
+      work.push(chosen[k].wire);
+      tags.push(members[Math.floor(members.length / 2)] + 1);
+    }
+    holder[index] = at[k];
+  });
+  return {
+    wires: work,
+    tags,
+    holder,
+    replaced: wires.map((_, index) => owner.has(index)),
+    chosen: chosen.map(({ element }, k) => ({ wires: element.wires, index: at[k] })),
+    remap: (place) => (owner.has(place.wire) ? { wire: holder[place.wire], place: "c" } : { ...place, wire: holder[place.wire] }),
+    warnings,
+  };
+}
+
 /** What the cards of the structure are made of. */
 interface Structure {
   /** The cards of the wires, the ground and the source. */
@@ -81,6 +258,7 @@ interface Structure {
   feeds: number[][];
   errors: string[];
   warnings: string[];
+  equivalents: Equivalent[];
 }
 
 /**
@@ -100,7 +278,8 @@ function structure(model: Model): Structure {
     held: Structure["loads"] = [],
     marks: Marks | null = null,
     feeds: number[][] = [],
-  ): Structure => ({ cards, segments, loads: held, marks, feeds, errors, warnings });
+    equivalents: Equivalent[] = [],
+  ): Structure => ({ cards, segments, loads: held, marks, feeds, errors, warnings, equivalents });
   // With one source the messages do not number it.
   const several = sources.length > 1;
   const sourceName = (index: number): string => (several ? `джерело ${index + 1}` : "джерело");
@@ -136,42 +315,42 @@ function structure(model: Model): Structure {
   });
   if (model.wireConductivity < 0) errors.push("Провідність дротів не може бути від'ємною.");
   if (errors.length > 0) return result();
-  const wires = joinEnds(placed);
-  const steps = radiusSteps(wires);
-  if (steps.length > 0) {
-    const more = steps.length > 1 ? ` і ще ${steps.length - 1}` : "";
-    warnings.push(
-      `Труби різного діаметра стикуються на одній осі (дроти ${steps[0][0]} і ${steps[0][1]}${more}). NEC-2 на таких стиках неточний: резонанс елемента може зсунутися на відсотки. Поправки Лісона, якою це виправляє EZNEC, тут ще немає.`,
-    );
-  }
+  const lambda = wavelength(frequency);
+  const joined = joinEnds(placed);
+  // Every tapered element that Leeson's method suits becomes one wire; the tags keep the numbers of the model.
+  const { wires, tags, holder, replaced, chosen, remap, warnings: stepWarnings } = substitute(model, joined, lambda);
+  warnings.push(...stepWarnings);
+  /** Counts of the wires of the engine as counts of the wires of the model: a corrected element has none of its own. */
+  const ofModel = (counts: number[]): number[] => joined.map((_, index) => (replaced[index] ? 0 : counts[holder[index]]));
+  const equivalents = (counts: number[]): Equivalent[] =>
+    chosen.map(({ wires: members, index }) => ({ wires: members, length: wireLength(wires[index]), radius: wires[index].radius, segments: counts[index] }));
 
   // The sources and the loads, with the words that the messages use for them.
   const pulses = [
-    ...sources.map(({ at }, index) => ({ at, name: sourceName(index), title: sourceTitle(index) })),
-    ...loads.map((load, index) => ({ at: load.at, name: `навантаження ${index + 1}`, title: `Навантаження ${index + 1}` })),
+    ...sources.map(({ at }, index) => ({ at: remap(at), name: sourceName(index), title: sourceTitle(index) })),
+    ...loads.map((load, index) => ({ at: remap(load.at), name: `навантаження ${index + 1}`, title: `Навантаження ${index + 1}` })),
   ];
-  const lambda = wavelength(frequency);
   // The regular segments of every wire. The segments that the engine gets can be more: a load has short ones around it.
   const counts = wires.map((wire, index) =>
     segmentCount(wire, frequency, pulses.some(({ at }) => at.wire === index && at.place === "c")),
   );
   if (counts.reduce((sum, count) => sum + count, 0) > MAX_SEGMENTS) {
     errors.push(`Модель має ${counts.reduce((sum, count) => sum + count, 0)} сегм., а програма рахує щонайбільше ${MAX_SEGMENTS}.`);
-    return result(counts);
+    return result(ofModel(counts), [], [], null, [], equivalents(counts));
   }
   wires.forEach((wire, index) => {
     const length = wireLength(wire) / counts[index];
     if (length > lambda / 10) {
-      warnings.push(`Сегменти дроту ${index + 1} довші за десяту частину хвилі: результат буде неточним.`);
+      warnings.push(`Сегменти дроту ${tags[index]} довші за десяту частину хвилі: результат буде неточним.`);
     }
     if (length < 8 * wire.radius) {
-      warnings.push(`Сегменти дроту ${index + 1} коротші за вісім радіусів: модель тонкого дроту тут неточна.`);
+      warnings.push(`Сегменти дроту ${tags[index]} коротші за вісім радіусів: модель тонкого дроту тут неточна.`);
     }
   });
   if (ground.kind === "real") {
     wires.forEach((wire, index) => {
       if (touches(wire.z1) || touches(wire.z2)) {
-        warnings.push(`Дріт ${index + 1} торкається реальної землі: таке заземлення NEC-2 рахує неточно.`);
+        warnings.push(`Дріт ${tags[index]} торкається реальної землі: таке заземлення NEC-2 рахує неточно.`);
       }
     });
   }
@@ -179,12 +358,12 @@ function structure(model: Model): Structure {
     const count = counts[at.wire];
     const segment = pulseSegment(at, count);
     if (segment < 1 || segment > count) {
-      errors.push(`${title} зсунуте за межі дроту ${at.wire + 1}: він має ${count} сегм.`);
+      errors.push(`${title} зсунуте за межі дроту ${tags[at.wire]}: він має ${count} сегм.`);
     } else if (at.place === "c" && count % 2 === 0) {
-      warnings.push(`Дріт ${at.wire + 1} має парну кількість сегментів: ${name} стоїть не точно в центрі.`);
+      warnings.push(`Дріт ${tags[at.wire]} має парну кількість сегментів: ${name} стоїть не точно в центрі.`);
     }
   }
-  if (errors.length > 0) return result(counts);
+  if (errors.length > 0) return result(ofModel(counts), [], [], null, [], equivalents(counts));
 
   // The segments of the wires, and those that the sources and the loads sit in. Only a load asks for a short one.
   const { pieces, seats } = layout(
@@ -198,7 +377,7 @@ function structure(model: Model): Structure {
   const total = segments.reduce((sum, count) => sum + count, 0);
   if (total > MAX_SEGMENTS) {
     errors.push(`Модель має ${total} сегм., а програма рахує щонайбільше ${MAX_SEGMENTS}.`);
-    return result(segments);
+    return result(ofModel(segments), [], [], null, [], equivalents(segments));
   }
   // The engine keeps one source in a segment: a second one there would replace the first without a word.
   const taken = new Map<string, number>();
@@ -207,13 +386,13 @@ function structure(model: Model): Structure {
     for (const seat of ofSource) {
       const key = `${seat.wire} ${seat.segment}`;
       const other = taken.get(key);
-      if (other !== undefined && other !== index) clashes.add(`Джерела ${other + 1} і ${index + 1} стоять в одному сегменті дроту ${seat.wire + 1}.`);
+      if (other !== undefined && other !== index) clashes.add(`Джерела ${other + 1} і ${index + 1} стоять в одному сегменті дроту ${tags[seat.wire]}.`);
       taken.set(key, index);
     }
   });
   if (clashes.size > 0) {
     errors.push(...clashes);
-    return result(segments);
+    return result(ofModel(segments), [], [], null, [], equivalents(segments));
   }
   const seated = loads.flatMap((load, index) => {
     if (load.kind === "lc" && load.inductance === 0 && load.capacitance === 0) {
@@ -221,7 +400,7 @@ function structure(model: Model): Structure {
       return [];
     }
     const ofLoad = seats[sources.length + index];
-    return ofLoad.map((seat) => ({ load, tag: seat.wire + 1, segment: seat.segment, share: 1 / ofLoad.length }));
+    return ofLoad.map((seat) => ({ load, tag: tags[seat.wire], segment: seat.segment, share: 1 / ofLoad.length }));
   });
 
   // A point of a wire at a distance from its beginning. A wire end on the ground is joined to its image.
@@ -232,7 +411,14 @@ function structure(model: Model): Structure {
     return [wire.x1 + (wire.x2 - wire.x1) * part, wire.y1 + (wire.y2 - wire.y1) * part, touches(z) ? 0 : z];
   };
   const onGround = wires.some((wire) => touches(wire.z1) || touches(wire.z2));
-  const cards = [`CM ${model.name.replace(/\s+/g, " ").trim() || "antenna-modeler"}`, "CE"];
+  const cards = [
+    `CM ${model.name.replace(/\s+/g, " ").trim() || "antenna-modeler"}`,
+    ...chosen.map(
+      ({ wires: members, index }) =>
+        `CM Leeson equivalent of wires ${span(members, "-")}: length ${number(wireLength(wires[index]))} m, radius ${number(wires[index].radius)} m`,
+    ),
+    "CE",
+  ];
   wires.forEach((wire, index) => {
     // Segments of one length in a row make one card; the cards of a wire share its tag.
     const lengths = pieces[index];
@@ -243,7 +429,7 @@ function structure(model: Model): Structure {
       const run = lengths.slice(first, last + 1).reduce((sum, length) => sum + length, 0);
       const to = last + 1 === lengths.length ? wireLength(wire) : from + run;
       const ends = [...along(index, from), ...along(index, to)].map(number).join(" ");
-      cards.push(`GW ${index + 1} ${last - first + 1} ${ends} ${number(wire.radius)}`);
+      cards.push(`GW ${tags[index]} ${last - first + 1} ${ends} ${number(wire.radius)}`);
       [first, from] = [last + 1, to];
     }
   });
@@ -259,7 +445,7 @@ function structure(model: Model): Structure {
     const [re, im] = [tidy(source.voltage * Math.cos(radians)), tidy(source.voltage * Math.sin(radians))];
     for (const seat of seats[index]) {
       const part = seat.sign / seats[index].length;
-      cards.push(`EX 0 ${seat.wire + 1} ${seat.segment} 0 ${number(re * part)} ${number(im * part)}`);
+      cards.push(`EX 0 ${tags[seat.wire]} ${seat.segment} 0 ${number(re * part)} ${number(im * part)}`);
     }
   });
   // The engine numbers its sources over the whole structure.
@@ -274,7 +460,14 @@ function structure(model: Model): Structure {
     const before = pieces[wire].slice(0, segment - 1).reduce((sum, length) => sum + length, 0);
     return along(wire, before + pieces[wire][segment - 1] / 2);
   });
-  return result(segments, cards, seated, { sources: places.slice(0, sources.length), loads: places.slice(sources.length) }, feeds);
+  return result(
+    ofModel(segments),
+    cards,
+    seated,
+    { sources: places.slice(0, sources.length), loads: places.slice(sources.length) },
+    feeds,
+    equivalents(segments),
+  );
 }
 
 /**
@@ -323,13 +516,14 @@ function lumped(model: Model, { loads }: Structure): string[] {
   return cards;
 }
 
-const finish = ({ cards, segments, marks, feeds, errors, warnings }: Structure, request: string[]): Deck => ({
+const finish = ({ cards, segments, marks, feeds, errors, warnings, equivalents }: Structure, request: string[]): Deck => ({
   text: errors.length > 0 ? "" : [...cards, ...request, "EN"].join("\n") + "\n",
   segments,
   marks,
   feeds: errors.length > 0 ? [] : feeds,
   errors,
   warnings,
+  equivalents,
 });
 
 /** The cards of the frequency of the model and of the pattern: the whole sphere, or its upper half over a ground. */

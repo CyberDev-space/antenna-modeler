@@ -5,7 +5,8 @@ import { band, summarize, sweepPoints } from "./analysis";
 import { buildDeck, buildSweepDeck, exportDeck } from "./deck";
 import { importMaa } from "./maa";
 import { optimize, read } from "./optimizer";
-import { COPPER, defaultModel, type Load, type Model } from "./model";
+import { leesonTerms } from "./leeson";
+import { ALUMINIUM, COPPER, defaultModel, type Load, type Model, type Wire } from "./model";
 
 // The page runs the engine in a worker; here it runs in the test itself.
 beforeAll(async () => {
@@ -308,5 +309,38 @@ describe("the optimizer through the engine", () => {
     // A half-wave dipole of thin wire resonates a few percent short of half a wavelength.
     expect(read(outcome.model, length)).toBeGreaterThan(9.9);
     expect(read(outcome.model, length)).toBeLessThan(10.5);
+  });
+});
+
+describe("Leeson's correction through the engine", () => {
+  // The elements of the tapered 4-element Yagi for 20 m of the library of MMANA:
+  // a centre tube of 1.8 m and 30 mm, a tube of 1.8 m and 25 mm on each side, then 20 mm.
+  const element = (x: number, half: number): Wire[] => {
+    const cuts = [-half, -2.7, -0.9, 0.9, 2.7, half];
+    const radii = [0.01, 0.0125, 0.015, 0.0125, 0.01];
+    return radii.map((radius, k) => ({ x1: x, y1: cuts[k], z1: 0, x2: x, y2: cuts[k + 1], z2: 0, radius, segments: -1 }));
+  };
+  const free = { ...defaultModel.ground, kind: "free" as const };
+  const fed = [{ at: { wire: 2, place: "c" as const }, phase: 0, voltage: 1 }];
+
+  it("gives the driven element the reactance that the method expects of it", () => {
+    const driven: Model = { ...defaultModel, wires: element(0, 5.185), sources: fed, frequency: 14.05, ground: free };
+    const reactance = (model: Model) => solveModel(model).impedance[1];
+    const [corrected, stepped] = [reactance(driven), reactance({ ...driven, taperCorrection: false })];
+    // The straight line of the method near resonance, with the velocity of light in vacuum, as NEC-2 has it.
+    const terms = leesonTerms([{ length: 0.9, radius: 0.015 }, { length: 1.8, radius: 0.0125 }, { length: 2.485, radius: 0.01 }]);
+    const quarterWave = 299.792458 / (4 * terms.h);
+    const expected = (((Math.PI * terms.sigma) / 2) * (14.05 - terms.kappa * quarterWave)) / quarterWave;
+    expect(Math.abs(corrected - expected)).toBeLessThan(Math.abs(stepped - expected) / 3);
+  });
+
+  it("brings the tapered Yagi of MMANA to resonance, where the steps make its driven element long in NEC-2", () => {
+    const wires = [...element(0, 5.185), ...element(-2.95, 5.405), ...element(1.87, 4.895), ...element(4.94, 4.86)];
+    const beam: Model = { ...defaultModel, wires, sources: fed, frequency: 14.05, ground: free, wireConductivity: ALUMINIUM };
+    const corrected = solveModel(beam);
+    const stepped = solveModel({ ...beam, taperCorrection: false });
+    expect(stepped.impedance[1]).toBeGreaterThan(12);
+    expect(Math.abs(corrected.impedance[1])).toBeLessThan(5);
+    expect(corrected.frontToBack!).toBeGreaterThan(stepped.frontToBack! + 2);
   });
 });

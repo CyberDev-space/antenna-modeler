@@ -106,3 +106,13 @@ describe("the sources of a stored model", () => {
     expect(restoreModel({ ...defaultModel, sources: [{ at: { wire: 0, place: "c" }, phase: "0", voltage: 1 }] })).toBeNull();
   });
 });
+
+describe("Leeson's correction of a stored model", () => {
+  it("is on for a model saved before it existed, and stays off when it was turned off", () => {
+    const { taperCorrection, ...older } = defaultModel;
+    void taperCorrection;
+    expect(restoreModel(JSON.parse(JSON.stringify(older)))!.taperCorrection).toBe(true);
+    expect(restoreModel({ ...defaultModel, taperCorrection: false })!.taperCorrection).toBe(false);
+    expect(openModel(saveModel({ ...defaultModel, taperCorrection: false }), defaultModel).model.taperCorrection).toBe(false);
+  });
+});

@@ -1,6 +1,6 @@
 import type { Summary, SweepPoint } from "../analysis";
 import { bands } from "../analysis";
-import type { Deck } from "../deck";
+import { span, type Deck } from "../deck";
 import { placedWires, roughMarks, type Point } from "../geometry";
 import { loadImpedance, resonance } from "../loads";
 import { formatPulse, type Model } from "../model";
@@ -148,7 +148,8 @@ export function PrintSheet({ model, deck, results, stale, sweep }: Props) {
   const wires = placedWires(model);
   const ring = results ? Math.ceil(results.summary.gain) : 0;
   const date = new Date().toLocaleDateString("uk-UA", { year: "numeric", month: "long", day: "numeric" });
-  const segments = deck.segments.reduce((sum, count) => sum + count, 0);
+  const segments = [...deck.segments, ...deck.equivalents.map((one) => one.segments)].reduce((sum, count) => sum + count, 0);
+  const replaced = new Set(deck.equivalents.flatMap((one) => one.wires));
   const metal = model.wireConductivity > 0 ? `провідність ${Number((model.wireConductivity / 1e6).toPrecision(4))} МСм/м` : "без втрат";
 
   return (
@@ -303,7 +304,7 @@ export function PrintSheet({ model, deck, results, stale, sweep }: Props) {
               <td>{[wire.x2, wire.y2, wire.z2].map(millimetres).join("; ")}</td>
               <td>{millimetres(Math.hypot(wire.x2 - wire.x1, wire.y2 - wire.y1, wire.z2 - wire.z1))}</td>
               <td>{millimetres(2 * wire.radius)}</td>
-              <td>{deck.segments[index] ?? "—"}</td>
+              <td>{replaced.has(index) ? "Л" : (deck.segments[index] ?? "—")}</td>
             </tr>
           ))}
         </tbody>
@@ -428,10 +429,16 @@ export function PrintSheet({ model, deck, results, stale, sweep }: Props) {
         </section>
       )}
 
-      {(deck.warnings.length > 0 || (results && results.warnings.length > 0)) && (
+      {(deck.warnings.length > 0 || deck.equivalents.length > 0 || (results && results.warnings.length > 0)) && (
         <>
           <h2>Примітки</h2>
           <ul className="sheet-notes">
+            {deck.equivalents.map((one) => (
+              <li key={one.wires.join(" ")}>
+                Поправка Лісона: дроти {span(one.wires)} (Л) ядро рахує як один рівний дріт {millimetres(one.length)} мм, Ø{" "}
+                {(2000 * one.radius).toFixed(2)} мм, з тим самим центром і віссю.
+              </li>
+            ))}
             {deck.warnings.map((warning) => (
               <li key={warning}>{warning}</li>
             ))}
