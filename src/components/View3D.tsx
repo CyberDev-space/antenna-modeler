@@ -7,6 +7,7 @@ import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js
 import { bounds, farthest, placedWires, roughMarks, type Marks, type Point } from "../geometry";
 import type { Model } from "../model";
 import { PATTERN_RANGE, surface, viridis, type PatternGrid } from "../pattern";
+import { Hint } from "./Help";
 
 interface Props {
   model: Model;
@@ -274,14 +275,18 @@ export function View3D({ model, marks, pattern }: Props) {
         </span>
         <span className="view-actions">
           {pattern && (
-            <label className="toggle">
-              <input type="checkbox" checked={patternWanted} onChange={(event) => setPatternWanted(event.target.checked)} />
-              Діаграма
-            </label>
+            <Hint topic="patternToggle">
+              <label className="toggle">
+                <input type="checkbox" checked={patternWanted} onChange={(event) => setPatternWanted(event.target.checked)} />
+                Діаграма
+              </label>
+            </Hint>
           )}
-          <button type="button" className="quiet" onClick={() => setFitRequest((count) => count + 1)}>
-            Показати все
-          </button>
+          <Hint topic="fitView">
+            <button type="button" className="quiet" onClick={() => setFitRequest((count) => count + 1)}>
+              Показати все
+            </button>
+          </Hint>
         </span>
       </div>
       {showPattern && (

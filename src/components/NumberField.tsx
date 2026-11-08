@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import type { TopicKey } from "../help";
+import { Hint, useHelp } from "./Help";
 
 interface Props {
   value: number;
@@ -6,8 +8,8 @@ interface Props {
   label: string;
   /** Shows the label only to screen readers, for cells of a table. */
   hideLabel?: boolean;
-  /** A hint that appears over the label. */
-  title?: string;
+  /** The topic of the help that pops up over the label. */
+  help?: TopicKey;
   width?: string;
 }
 
@@ -21,7 +23,8 @@ function parse(text: string): number {
  * A field for a number. The text stays as typed ("-", "0.", "5,05"), and
  * the value is passed on whenever the text is a number.
  */
-export function NumberField({ value, onChange, label, hideLabel, title, width }: Props) {
+export function NumberField({ value, onChange, label, hideLabel, help, width }: Props) {
+  const helper = useHelp();
   const [text, setText] = useState(String(value));
   // Follow a value that changed elsewhere, but leave the text being typed alone.
   useEffect(() => {
@@ -43,13 +46,19 @@ export function NumberField({ value, onChange, label, hideLabel, title, width }:
         const parsed = parse(event.target.value);
         if (Number.isFinite(parsed)) onChange(parsed);
       }}
-      onBlur={() => setText(String(value))}
+      onFocus={(event) => {
+        if (help && helper && event.target.matches(":focus-visible")) helper.show(help, event.target);
+      }}
+      onBlur={() => {
+        setText(String(value));
+        helper?.hide();
+      }}
     />
   );
   if (hideLabel) return input;
   return (
     <label className="field">
-      <span title={title}>{label}</span>
+      <span>{help ? <Hint topic={help}>{label}</Hint> : label}</span>
       {input}
     </label>
   );

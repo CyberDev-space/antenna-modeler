@@ -16,7 +16,7 @@
   --trace-b: #c2570c;
   --trace-c: #1a7f4b;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
-  font-size: 15px;
+  font-size: clamp(15px, calc(9px + min(0.3125vw, 0.5556vh)), 20px);
   line-height: 1.45;
 }
 
@@ -63,7 +63,7 @@ body {
   .app {
     height: 100vh;
     height: 100dvh;
-    grid-template-columns: clamp(460px, 34vw, 640px) minmax(0, 1fr);
+    grid-template-columns: clamp(30rem, 34vw, 44rem) minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
     overflow: hidden;
   }
@@ -260,6 +260,21 @@ h2 {
   .patterns {
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   }
+  .patterns.over-ground {
+    grid-template-rows: minmax(0, 3fr) minmax(0, 2fr);
+  }
+  /* In the optimizer the two cuts stand side by side under the settings. */
+  .optimizer-tab {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .patterns.beside,
+  .patterns.beside.over-ground {
+    flex: 1 0 22rem;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
 }
 
 .card {
@@ -369,7 +384,7 @@ button.icon {
 
 table {
   width: 100%;
-  min-width: 560px;
+  min-width: 37rem;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
 }
@@ -451,6 +466,7 @@ button {
 }
 
 label.button {
+  display: inline-block;
   margin-top: 8px;
   padding: 6px 12px;
   border: 1px solid var(--line);
@@ -511,7 +527,7 @@ td button.quiet {
 
 .field input,
 .field select {
-  font-size: 15px;
+  font-size: 1rem;
 }
 
 fieldset {
@@ -597,7 +613,7 @@ legend {
 
 .summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
   gap: 8px;
   margin: 0;
 }
@@ -680,11 +696,11 @@ legend {
 .ring-label,
 .axis-label {
   fill: var(--muted);
-  font-size: 10px;
+  font-size: 0.75rem;
 }
 
 .axis-label {
-  font-size: 12px;
+  font-size: 0.85rem;
 }
 
 .view3d {
@@ -911,7 +927,7 @@ legend {
 
 .tick {
   fill: var(--muted);
-  font-size: 10px;
+  font-size: 0.75rem;
 }
 
 .guide {
@@ -971,7 +987,157 @@ pre {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--page);
-  font-size: 11.5px;
+  font-size: 0.77rem;
+}
+
+/* Lines of text stay short enough to read on a wide screen. */
+p.note,
+p.band,
+.messages {
+  max-width: 90ch;
+}
+
+/* The help: names with help are underlined with dots while it is switched on. */
+.hint.on {
+  text-decoration: underline dotted color-mix(in srgb, var(--muted) 70%, transparent);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.hint.on input {
+  cursor: auto;
+}
+
+.name-field .hint {
+  display: block;
+}
+
+.help-popup {
+  position: fixed;
+  z-index: 100;
+  width: max-content;
+  max-width: min(29rem, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  padding: 12px 16px 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 0.3);
+  font-size: 1.07rem;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.help-title {
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+
+.help-popup p {
+  margin: 0;
+}
+
+.help-section {
+  margin-top: 12px;
+}
+
+.help-label {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.help-section ul {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.help-section li + li {
+  margin-top: 4px;
+}
+
+.help-section li::marker {
+  color: var(--muted);
+}
+
+.help-table {
+  width: 100%;
+  min-width: 0;
+  border-collapse: collapse;
+}
+
+.help-table th,
+.help-table td {
+  padding: 4px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+  text-align: left;
+  vertical-align: baseline;
+}
+
+.help-table tr:first-child > * {
+  border-top: 0;
+}
+
+.help-table th {
+  width: 1%;
+  padding-right: 16px;
+  color: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.help-default {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  margin: 12px -16px -14px;
+  padding: 9px 16px 10px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.help-default .help-label {
+  flex: none;
+  margin: 0;
+}
+
+.help-popup code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ink) 9%, transparent);
+  font-family: ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  font-size: 0.9em;
+}
+
+.help-switch {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.help-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.help-switch.on {
+  color: var(--accent);
 }
 
 /* The sheet for building: hidden on the screen, alone on paper. It keeps
@@ -1021,6 +1187,31 @@ body.sheet-preview .print-sheet {
   fill: #1b2330;
   font-size: 12px;
   font-weight: 600;
+}
+
+.dim-line,
+.dim-extension {
+  stroke: #3d4a5c;
+  stroke-width: 0.8;
+}
+
+.dim-extension {
+  stroke-width: 0.6;
+}
+
+.dim-arrow {
+  fill: #3d4a5c;
+}
+
+/* A light halo keeps the figures legible where they cross a line. */
+.dim-text {
+  fill: #111111;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }
 
 .plan-scale line {
@@ -1080,7 +1271,7 @@ body.sheet-preview .print-sheet {
   display: block;
   width: 100%;
   height: auto;
-  max-height: 90mm;
+  max-height: 125mm;
   border: 0.5pt solid var(--line);
 }
 

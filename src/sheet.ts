@@ -122,3 +122,93 @@ export function directionText(direction: Point): string {
   if (axis >= 0) return `уздовж ${AXIS_NAMES[axis]}`;
   return `(${direction.map((value) => value.toFixed(3).replace("-", "−")).join("; ")})`;
 }
+
+type Flat = [number, number];
+
+/** A dimension on the drawing: its line with arrows at both ends, the lines out to what it measures, and its label. */
+export interface Dimension {
+  line: [Flat, Flat];
+  extensions: [Flat, Flat][];
+  label: { text: string; at: Flat; angle: number };
+}
+
+/** The dimensions and the numbers of the elements on a drawing. */
+export interface Annotations {
+  dimensions: Dimension[];
+  numbers: { text: string; at: Flat }[];
+}
+
+/** Elements drawn shorter than this many units get no dimension: the label would not fit. */
+const SHORTEST = 24;
+
+/**
+ * The dimensions of a drawing, in its own units: the length of every element
+ * beside it, and, for elements along a boom that lies in the drawing, the
+ * spacings between them in a chain beyond their ends and the whole length in
+ * a second chain. `project` maps a point of the model to the drawing, whose
+ * second coordinate grows downwards.
+ */
+export function planDimensions(rows: ElementRow[], layout: Boom | null, axes: [Axis, Axis], project: (point: Point) => Flat): Annotations {
+  const dimensions: Dimension[] = [];
+  const numbers: { text: string; at: Flat }[] = [];
+  const along = (row: ElementRow, part: number): Point => row.centre.map((value, k) => value + (row.direction[k] * row.length * part) / 2) as Point;
+  const add = (p: Flat, q: Flat, scale: number): Flat => [p[0] + q[0] * scale, p[1] + q[1] * scale];
+
+  for (const row of rows) {
+    const [p, q] = [project(along(row, -1)), project(along(row, 1))];
+    const size = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (!(size > 0)) continue;
+    // The direction on the drawing, turned to point right, or up when the element stands upright.
+    let d: Flat = [(q[0] - p[0]) / size, (q[1] - p[1]) / size];
+    if (d[0] < -1e-9 || (Math.abs(d[0]) <= 1e-9 && d[1] > 0)) d = [-d[0], -d[1]];
+    const [start, end] = d[0] * (q[0] - p[0]) + d[1] * (q[1] - p[1]) >= 0 ? [p, q] : [q, p];
+    numbers.push({ text: String(row.number), at: add(end, d, 12) });
+    if (size < SHORTEST) continue;
+    // Beside the element: to its right when it stands upright, below it when it lies.
+    const n: Flat = [-d[1], d[0]];
+    const offset = 14;
+    const mid = add(start, d, size / 2);
+    dimensions.push({
+      line: [add(start, n, offset), add(end, n, offset)],
+      extensions: [
+        [add(start, n, 3), add(start, n, offset + 4)],
+        [add(end, n, 3), add(end, n, offset + 4)],
+      ],
+      label: { text: millimetres(row.length), at: add(mid, n, offset + 8), angle: (Math.atan2(d[1], d[0]) * 180) / Math.PI },
+    });
+  }
+
+  if (layout && axes.includes(layout.axis)) {
+    const horizontal = layout.axis === axes[0];
+    const byNumber = new Map(rows.map((row) => [row.number, row]));
+    const ends = layout.rows.map(({ number }) => {
+      const row = byNumber.get(number)!;
+      return [project(along(row, -1)), project(along(row, 1))];
+    });
+    // The chains run below the drawing for a boom across it, to its left for a boom up it.
+    const beyond = horizontal ? Math.max(...ends.flat().map((point) => point[1])) : Math.min(...ends.flat().map((point) => point[0]));
+    const sign = horizontal ? 1 : -1;
+    const centres = layout.rows.map(({ number }) => project(byNumber.get(number)!.centre));
+    const placeOf = (point: Flat): number => (horizontal ? point[0] : point[1]);
+    const at = (place: number, depth: number): Flat => (horizontal ? [place, beyond + sign * depth] : [beyond + sign * depth, place]);
+    const near = ends.map((pair) => (horizontal ? Math.max(pair[0][1], pair[1][1]) : Math.min(pair[0][0], pair[1][0])));
+    const chain = (depth: number, from: number, to: number, text: string): Dimension => {
+      const [a, b] = [placeOf(centres[from]), placeOf(centres[to])];
+      const label = at((a + b) / 2, depth - 7);
+      return {
+        line: [at(a, depth), at(b, depth)],
+        extensions: [from, to].map((k): [Flat, Flat] => {
+          const place = placeOf(centres[k]);
+          const start: Flat = horizontal ? [place, near[k] + 3] : [near[k] - 3, place];
+          return [start, at(place, depth + 4)];
+        }),
+        label: { text, at: label, angle: horizontal ? 0 : -90 },
+      };
+    };
+    layout.rows.forEach((row, k) => {
+      if (k > 0 && row.spacing !== null) dimensions.push(chain(26, k - 1, k, millimetres(row.spacing)));
+    });
+    if (layout.rows.length > 2) dimensions.push(chain(50, 0, layout.rows.length - 1, millimetres(layout.rows.at(-1)!.position)));
+  }
+  return { dimensions, numbers };
+}

@@ -1,6 +1,6 @@
 import { useState, type PointerEvent } from "react";
 import { ticks } from "../ticks";
-import { useSize } from "../useSize";
+import { fontScale, useSize } from "../useSize";
 
 export interface Series {
   name: string;
@@ -24,10 +24,8 @@ interface Props {
   format: (value: number) => string;
 }
 
-const LEFT = 52;
-const RIGHT = 12;
-const TOP = 10;
-const BOTTOM = 26;
+/** Room around the plot for the labels, in pixels at the usual font size. */
+const ROOM = { left: 52, right: 12, top: 10, bottom: 26 };
 
 const megahertz = (value: number): string => Number(value.toFixed(3)).toString();
 
@@ -37,6 +35,8 @@ export function LineChart({ title, x, series, range, guides = [], marker, format
   const [host, size] = useSize<HTMLDivElement>();
   const WIDTH = size.width || 520;
   const HEIGHT = size.height || 250;
+  const k = fontScale();
+  const [LEFT, RIGHT, TOP, BOTTOM] = [ROOM.left * k, ROOM.right * k, ROOM.top * k, ROOM.bottom * k];
 
   const values = series.flatMap((one) => one.values).filter(Number.isFinite);
   let [low, high] = range ?? [Math.min(...values), Math.max(...values)];
@@ -85,18 +85,18 @@ export function LineChart({ title, x, series, range, guides = [], marker, format
         onPointerDown={move}
         onPointerLeave={() => setHover(null)}
       >
-        {ticks(low, high, Math.max(3, Math.round(HEIGHT / 55))).map((mark) => (
+        {ticks(low, high, Math.max(3, Math.round(HEIGHT / (55 * k)))).map((mark) => (
           <g key={mark}>
             <line className={mark === 0 ? "zero" : "grid"} x1={LEFT} x2={WIDTH - RIGHT} y1={py(mark)} y2={py(mark)} />
-            <text className="tick" x={LEFT - 6} y={py(mark) + 3} textAnchor="end">
+            <text className="tick" x={LEFT - 6 * k} y={py(mark) + 4 * k} textAnchor="end">
               {mark}
             </text>
           </g>
         ))}
-        {ticks(first, last, Math.max(4, Math.round(WIDTH / 110))).map((mark) => (
+        {ticks(first, last, Math.max(4, Math.round(WIDTH / (110 * k)))).map((mark) => (
           <g key={mark}>
             <line className="grid" x1={px(mark)} x2={px(mark)} y1={TOP} y2={HEIGHT - BOTTOM} />
-            <text className="tick" x={px(mark)} y={HEIGHT - BOTTOM + 14} textAnchor="middle">
+            <text className="tick" x={px(mark)} y={HEIGHT - BOTTOM + 16 * k} textAnchor="middle">
               {megahertz(mark)}
             </text>
           </g>

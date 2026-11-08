@@ -3,6 +3,7 @@ import { summarize, type Summary } from "./analysis";
 import { LoadTable } from "./components/LoadTable";
 import { OptimizerPanel } from "./components/OptimizerPanel";
 import { Card } from "./components/Card";
+import { HelpProvider, HelpSwitch, Hint } from "./components/Help";
 import { PrintSheet, type SheetSweep } from "./components/PrintSheet";
 import { PatternCards, SummaryTiles } from "./components/Results";
 import { Settings } from "./components/Settings";
@@ -42,10 +43,10 @@ interface FileNote {
 
 /** The tabs of the workspace. */
 const TABS = [
-  ["view", "Вигляд і діаграми"],
-  ["sweep", "Розгортка"],
-  ["optimizer", "Оптимізація"],
-  ["report", "Звіт NEC-2"],
+  ["view", "Вигляд і діаграми", "tabView"],
+  ["sweep", "Розгортка", "tabSweep"],
+  ["optimizer", "Оптимізація", "tabOptimizer"],
+  ["report", "Звіт NEC-2", "tabReport"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -179,8 +180,10 @@ export function App() {
   // A failure says nothing about a model that was changed since.
   const problems = deck.errors.length > 0 ? deck.errors : failure?.model === key ? failure.lines : null;
 
+  const patternsClass = ["patterns", solved?.overGround && "over-ground", stale && "stale"].filter(Boolean).join(" ");
+
   return (
-    <>
+    <HelpProvider>
     <div className="app">
       <header className="topbar">
         <div className="brand">
@@ -189,45 +192,62 @@ export function App() {
         </div>
         <label className="name-field">
           <span className="sr-only">Назва моделі</span>
-          <input
-            type="text"
-            className="text"
-            placeholder="Назва моделі"
-            value={model.name}
-            onChange={(event) => setModel({ ...model, name: event.target.value })}
-          />
+          <Hint topic="name">
+            <input
+              type="text"
+              className="text"
+              placeholder="Назва моделі"
+              value={model.name}
+              onChange={(event) => setModel({ ...model, name: event.target.value })}
+            />
+          </Hint>
         </label>
         <div className="file-actions">
-          <label className="button">
-            Відкрити
-            <input type="file" accept=".maa,.json" onChange={open} />
-          </label>
-          <button type="button" onClick={() => save("json")}>
-            Зберегти
-          </button>
-          <button type="button" title="Файл антени для MMANA" onClick={() => save("maa")}>
-            .maa
-          </button>
-          <button type="button" title="Картки NEC-2 для інших програм" onClick={() => save("nec")} disabled={deck.errors.length > 0}>
-            .nec
-          </button>
-          <button
-            type="button"
-            className="quiet"
-            onClick={() => {
-              setModel(defaultModel);
-              setFileNote(null);
-            }}
-          >
-            Приклад
-          </button>
+          <Hint topic="open">
+            <label className="button">
+              Відкрити
+              <input type="file" accept=".maa,.json" onChange={open} />
+            </label>
+          </Hint>
+          <Hint topic="save">
+            <button type="button" onClick={() => save("json")}>
+              Зберегти
+            </button>
+          </Hint>
+          <Hint topic="exportMaa">
+            <button type="button" aria-label="Експорт у файл MMANA" onClick={() => save("maa")}>
+              .maa
+            </button>
+          </Hint>
+          <Hint topic="exportNec">
+            <button type="button" aria-label="Експорт у картки NEC-2" onClick={() => save("nec")} disabled={deck.errors.length > 0}>
+              .nec
+            </button>
+          </Hint>
+          <Hint topic="example">
+            <button
+              type="button"
+              className="quiet"
+              onClick={() => {
+                setModel(defaultModel);
+                setFileNote(null);
+              }}
+            >
+              Приклад
+            </button>
+          </Hint>
         </div>
-        <button type="button" onClick={printSheet} title="Аркуш для виготовлення: креслення, розміри, труби, результати, діаграми. У вікні друку виберіть «Зберегти як PDF».">
-          PDF
-        </button>
-        <button type="button" className="primary compute" onClick={compute} disabled={!canCompute} title="Ctrl+Enter">
-          {running ? "Рахую…" : "Розрахувати"}
-        </button>
+        <HelpSwitch />
+        <Hint topic="pdf">
+          <button type="button" onClick={printSheet}>
+            PDF
+          </button>
+        </Hint>
+        <Hint topic="compute">
+          <button type="button" className="primary compute" onClick={compute} disabled={!canCompute} aria-keyshortcuts="Control+Enter">
+            {running ? "Рахую…" : "Розрахувати"}
+          </button>
+        </Hint>
       </header>
 
       <aside className="editor" aria-label="Модель">
@@ -282,7 +302,7 @@ export function App() {
         </section>
 
         <nav className="tabs" role="tablist" aria-label="Робоча область">
-          {TABS.map(([id, label]) => (
+          {TABS.map(([id, label, topic]) => (
             <button
               key={id}
               type="button"
@@ -293,7 +313,7 @@ export function App() {
               className={tab === id ? "tab active" : "tab"}
               onClick={() => setTab(id)}
             >
-              {label}
+              <Hint topic={topic}>{label}</Hint>
             </button>
           ))}
         </nav>
@@ -306,7 +326,7 @@ export function App() {
             </Suspense>
           </Card>
           {solved ? (
-            <div className={stale ? "patterns stale" : "patterns"}>
+            <div className={patternsClass}>
               <PatternCards summary={solved.summary} overGround={solved.overGround} />
             </div>
           ) : (
@@ -320,7 +340,7 @@ export function App() {
           <SweepPanel model={model} onChange={setModel} onResult={setLastSweep} />
         </div>
 
-        <div className="tab-panel scroll" role="tabpanel" id="panel-optimizer" aria-labelledby="tab-optimizer" hidden={tab !== "optimizer"}>
+        <div className="tab-panel scroll optimizer-tab" role="tabpanel" id="panel-optimizer" aria-labelledby="tab-optimizer" hidden={tab !== "optimizer"}>
           <OptimizerPanel
             model={model}
             onBetter={(better, evaluation) => {
@@ -329,6 +349,12 @@ export function App() {
             }}
             onRestore={setModel}
           />
+          {/* The patterns of the best model so far fill the rest. */}
+          {solved && (
+            <div className={`${patternsClass} beside`}>
+              <PatternCards summary={solved.summary} overGround={solved.overGround} />
+            </div>
+          )}
         </div>
 
         <div className="tab-panel report-panel" role="tabpanel" id="panel-report" aria-labelledby="tab-report" hidden={tab !== "report"}>
@@ -352,6 +378,6 @@ export function App() {
       stale={stale}
       sweep={lastSweep && lastSweep.key === sweepKey(model) ? lastSweep : null}
     />
-    </>
+    </HelpProvider>
   );
 }

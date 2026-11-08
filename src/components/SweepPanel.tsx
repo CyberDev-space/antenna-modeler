@@ -6,6 +6,7 @@ import { solve, type Failure } from "../engine";
 import { formatPulse, sweepKey, type Model } from "../model";
 import type { SheetSweep } from "./PrintSheet";
 import { Card } from "./Card";
+import { Hint } from "./Help";
 import { LineChart } from "./LineChart";
 import { NumberField } from "./NumberField";
 
@@ -112,15 +113,19 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
   return (
     <div className="sweep" aria-live="polite">
       <div className="settings sweep-controls">
-        <NumberField label="Від, МГц" value={model.sweep.from} onChange={(from) => setSweep({ from })} />
-        <NumberField label="До, МГц" value={model.sweep.to} onChange={(to) => setSweep({ to })} />
-        <NumberField label="Точок" value={model.sweep.points} onChange={(points) => setSweep({ points: Math.round(points) })} />
-        <button type="button" className="primary" onClick={sweep} disabled={running || deck.errors.length > 0}>
-          {running ? "Рахую…" : "Розгорнути"}
-        </button>
+        <NumberField label="Від, МГц" help="sweepRange" value={model.sweep.from} onChange={(from) => setSweep({ from })} />
+        <NumberField label="До, МГц" help="sweepRange" value={model.sweep.to} onChange={(to) => setSweep({ to })} />
+        <NumberField label="Точок" help="sweepRange" value={model.sweep.points} onChange={(points) => setSweep({ points: Math.round(points) })} />
+        <Hint topic="sweepRun">
+          <button type="button" className="primary" onClick={sweep} disabled={running || deck.errors.length > 0}>
+            {running ? "Рахую…" : "Розгорнути"}
+          </button>
+        </Hint>
         {swept && swept.sources.length > 1 && (
           <label className="field">
-            <span>Джерело на графіках</span>
+            <span>
+              <Hint topic="sweepSource">Джерело на графіках</Hint>
+            </span>
             <select value={which} onChange={(event) => setChosen(Number(event.target.value))}>
               {swept.sources.map((place, index) => (
                 <option key={index} value={index} disabled={!swept.driven[index]}>
@@ -144,8 +149,9 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
         <div className={stale ? "sweep-result stale" : "sweep-result"}>
           {stale && <p className="note">Модель змінено: ці графіки належать попередній.</p>}
           <p className="band">
-            Найменший КСХ {found.swr.toFixed(2)} на {megahertz(found.best)} МГц.{" "}
-            {bandsText(bands(points, LIMIT))}
+            <Hint topic="sweepBand">
+              Найменший КСХ {found.swr.toFixed(2)} на {megahertz(found.best)} МГц. {bandsText(bands(points, LIMIT))}
+            </Hint>
           </p>
           <div className="charts">
             <Card title={`КСХ (${swept.reference} Ом)`}>

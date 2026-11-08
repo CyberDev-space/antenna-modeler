@@ -17,6 +17,8 @@ import {
   type Setting,
   type Variable,
 } from "../optimizer";
+import type { TopicKey } from "../help";
+import { Hint } from "./Help";
 import { NumberField } from "./NumberField";
 
 /** A computed model: its result, and what the panel of results shows of it. */
@@ -85,12 +87,12 @@ function around(model: Model, variable: Variable): Setting {
   }
 }
 
-const GOALS: [key: keyof Goals, label: string, hint: string][] = [
-  ["gain", "Підсилення", "Бал за кожен децибел підсилення"],
-  ["frontToBack", "Фронт/тил", "Бал за кожні 3 дБ; понад 30 дБ не рахується"],
-  ["swr", "КСХ", "КСХ 2 забирає 4 бали, КСХ 1,4 — 2"],
-  ["reactance", "Реактивність", "Кожні 20 Ом реактивного опору забирають бал"],
-  ["elevation", "Кут випромінювання", "Кожні 3° від цільового кута забирають бал"],
+const GOALS: [key: keyof Goals, label: string, help: TopicKey][] = [
+  ["gain", "Підсилення", "goalGain"],
+  ["frontToBack", "Фронт/тил", "goalFrontToBack"],
+  ["swr", "КСХ", "goalSwr"],
+  ["reactance", "Реактивність", "goalReactance"],
+  ["elevation", "Кут випромінювання", "goalElevation"],
 ];
 
 const REASONS: Record<Outcome<unknown>["reason"], string> = {
@@ -192,7 +194,9 @@ export function OptimizerPanel({ model, onBetter, onRestore }: Props) {
             <div className="load" key={index}>
               <span className="index">{index + 1}</span>
               <label className="field">
-                <span>Що змінювати</span>
+                <span>
+                  <Hint topic="optimizerKind">Що змінювати</Hint>
+                </span>
                 <select
                   value={kindOf(setting)}
                   onChange={(event) => {
@@ -211,6 +215,7 @@ export function OptimizerPanel({ model, onBetter, onRestore }: Props) {
               </label>
               <NumberField
                 label={setting.kind === "load" ? "Навантаження №" : setting.kind === "phase" ? "Джерело №" : "Дріт №"}
+                help="optimizerTarget"
                 value={targetOf(setting) + 1}
                 onChange={(number) => {
                   const kind = KINDS.find((one) => one.key === kindOf(setting))!;
@@ -219,10 +224,10 @@ export function OptimizerPanel({ model, onBetter, onRestore }: Props) {
                   replace(index, exists(model, made) ? around(model, made) : { ...setting, ...made });
                 }}
               />
-              <NumberField label="Від" value={setting.min} onChange={(min) => replace(index, { ...setting, min })} />
-              <NumberField label="До" value={setting.max} onChange={(max) => replace(index, { ...setting, max })} />
-              <NumberField label="Крок" value={setting.step} onChange={(step) => replace(index, { ...setting, step })} />
-              <span className="resonance" title={describe(setting)}>
+              <NumberField label="Від" help="optimizerLimits" value={setting.min} onChange={(min) => replace(index, { ...setting, min })} />
+              <NumberField label="До" help="optimizerLimits" value={setting.max} onChange={(max) => replace(index, { ...setting, max })} />
+              <NumberField label="Крок" help="optimizerStep" value={setting.step} onChange={(step) => replace(index, { ...setting, step })} />
+              <span className="resonance" aria-label={describe(setting)}>
                 зараз {Number.isFinite(value) ? round(value) : "—"}
               </span>
               <button
@@ -237,19 +242,23 @@ export function OptimizerPanel({ model, onBetter, onRestore }: Props) {
             </div>
           );
         })}
-        <button type="button" onClick={add} disabled={running || model.wires.length === 0}>
-          Додати змінну
-        </button>
+        <Hint topic="optimizerAdd">
+          <button type="button" onClick={add} disabled={running || model.wires.length === 0}>
+            Додати змінну
+          </button>
+        </Hint>
       </div>
 
       <fieldset className="goals">
-        <legend>Цілі та їхні ваги</legend>
+        <legend>
+          <Hint topic="goals">Цілі та їхні ваги</Hint>
+        </legend>
         <div className="choices">
-          {GOALS.map(([key, label, hint]) => (
-            <NumberField key={key} label={label} title={hint} value={goals[key]} onChange={(weight) => setGoals({ ...goals, [key]: Math.max(0, weight) })} />
+          {GOALS.map(([key, label, help]) => (
+            <NumberField key={key} label={label} help={help} value={goals[key]} onChange={(weight) => setGoals({ ...goals, [key]: Math.max(0, weight) })} />
           ))}
           {goals.elevation > 0 && (
-            <NumberField label="Цільовий кут, °" value={goals.target} onChange={(target) => setGoals({ ...goals, target })} />
+            <NumberField label="Цільовий кут, °" help="goalTarget" value={goals.target} onChange={(target) => setGoals({ ...goals, target })} />
           )}
         </div>
       </fieldset>
@@ -260,9 +269,11 @@ export function OptimizerPanel({ model, onBetter, onRestore }: Props) {
             Зупинити
           </button>
         ) : (
-          <button type="button" className="primary" onClick={run} disabled={settings.length === 0}>
-            Оптимізувати
-          </button>
+          <Hint topic="optimizerRun">
+            <button type="button" className="primary" onClick={run} disabled={settings.length === 0}>
+              Оптимізувати
+            </button>
+          </Hint>
         )}
         {!running && start && (
           <button type="button" onClick={() => onRestore(start)}>

@@ -1,5 +1,6 @@
 import type { Summary } from "../analysis";
 import { Card } from "./Card";
+import { Hint } from "./Help";
 import { PolarPlot } from "./PolarPlot";
 
 /** A number with a true minus sign, and without the sign of a rounded zero. */
@@ -36,34 +37,48 @@ export function SummaryTiles({ summary, sources, reference, lossy }: TilesProps)
         {!several && (
           <>
             <div>
-              <dt>Вхідний опір</dt>
+              <dt>
+                <Hint topic="impedance">Вхідний опір</Hint>
+              </dt>
               <dd>{impedance(summary.impedance)}</dd>
             </div>
             <div>
-              <dt>КСХ ({reference} Ом)</dt>
+              <dt>
+                <Hint topic="swr">КСХ ({reference} Ом)</Hint>
+              </dt>
               <dd>{swrText(summary.swr)}</dd>
             </div>
           </>
         )}
         <div>
-          <dt>Підсилення</dt>
+          <dt>
+            <Hint topic="gain">Підсилення</Hint>
+          </dt>
           <dd>{fixed(summary.gain, 2)} дБі</dd>
         </div>
         <div>
-          <dt>Фронт/тил</dt>
+          <dt>
+            <Hint topic="frontToBack">Фронт/тил</Hint>
+          </dt>
           <dd>{summary.frontToBack === null ? "—" : `${fixed(summary.frontToBack, 1)} дБ`}</dd>
         </div>
         <div>
-          <dt>Кут випромінювання</dt>
+          <dt>
+            <Hint topic="elevation">Кут випромінювання</Hint>
+          </dt>
           <dd>{degrees(summary.elevation)}°</dd>
         </div>
         <div>
-          <dt>Азимут максимуму</dt>
+          <dt>
+            <Hint topic="azimuth">Азимут максимуму</Hint>
+          </dt>
           <dd>{fixed(summary.azimuth, 0)}°</dd>
         </div>
         {lossy && summary.efficiency !== null && (
           <div>
-            <dt title="Частка потужності, що не втрачена в дротах і навантаженнях. Втрати в землі сюди не входять.">ККД</dt>
+            <dt>
+              <Hint topic="efficiency">ККД</Hint>
+            </dt>
             <dd>{fixed(summary.efficiency * 100, 1)} %</dd>
           </div>
         )}
@@ -73,9 +88,15 @@ export function SummaryTiles({ summary, sources, reference, lossy }: TilesProps)
           <thead>
             <tr>
               <th>Джерело</th>
-              <th>Вхідний опір</th>
-              <th>КСХ ({reference} Ом)</th>
-              <th title="Частка потужності, яку дає джерело. Від'ємна: джерело забирає потужність в інших.">Потужність</th>
+              <th>
+                <Hint topic="impedance">Вхідний опір</Hint>
+              </th>
+              <th>
+                <Hint topic="swr">КСХ ({reference} Ом)</Hint>
+              </th>
+              <th>
+                <Hint topic="portPower">Потужність</Hint>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -105,15 +126,15 @@ interface PatternProps {
 /** The two cuts of the pattern through its maximum, each in a card of its own. */
 export function PatternCards({ summary, overGround }: PatternProps) {
   const ring = Math.ceil(summary.gain);
-  const scale = <span className="caption" title="Кола проведено через 3, 10, 20 і 30 дБ нижче">зовнішнє коло {ring} дБі</span>;
+  const scale = <span className="caption">зовнішнє коло {ring} дБі</span>;
   const horizontal = `Горизонтальна діаграма, кут ${fixed(summary.cutElevation, 0)}°`;
   const vertical = `Вертикальна діаграма, азимут ${fixed(summary.azimuth, 0)}°`;
   return (
     <>
-      <Card title={horizontal} actions={scale} className="pattern-h">
+      <Card title={<Hint topic="patternHorizontal">{horizontal}</Hint>} actions={scale} className="pattern-h">
         <PolarPlot title={horizontal} cut={summary.azimuthCut} max={ring} labels={["X", "Y", "−X", "−Y"]} />
       </Card>
-      <Card title={vertical} actions={scale} className="pattern-v">
+      <Card title={<Hint topic="patternVertical">{vertical}</Hint>} actions={scale} className="pattern-v">
         <PolarPlot title={vertical} cut={summary.elevationCut} max={ring} labels={["0°", "90°", "180°", "−90°"]} upperHalf={overGround} />
       </Card>
     </>

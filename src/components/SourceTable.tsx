@@ -20,11 +20,11 @@ export function SourceTable({ sources, onChange }: Props) {
           <PulseField label="Місце" value={source.at} onChange={(at) => replace(index, { ...source, at })} />
           <NumberField
             label="Фаза, °"
-            title="Зсув фази відносно інших джерел, як у MMANA"
+            help="sourcePhase"
             value={source.phase}
             onChange={(phase) => replace(index, { ...source, phase })}
           />
-          <NumberField label="Напруга, В" value={source.voltage} onChange={(voltage) => replace(index, { ...source, voltage })} />
+          <NumberField label="Напруга, В" help="sourceVoltage" value={source.voltage} onChange={(voltage) => replace(index, { ...source, voltage })} />
           <button
             type="button"
             className="quiet remove"

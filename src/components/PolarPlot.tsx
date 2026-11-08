@@ -1,6 +1,6 @@
 import { useState, type PointerEvent } from "react";
 import type { Cut } from "../analysis";
-import { useSize } from "../useSize";
+import { fontScale, useSize } from "../useSize";
 
 interface Props {
   title: string;
@@ -16,7 +16,7 @@ interface Props {
 /** The plot shows this many dB below the maximum. */
 const RANGE = 40;
 const RINGS = [0, -3, -10, -20, -30];
-/** Room around the outer ring for the labels, in pixels. */
+/** Room around the outer ring for the labels, in pixels at the usual font size. */
 const MARGIN = 26;
 
 /**
@@ -29,9 +29,11 @@ export function PolarPlot({ title, cut, max, labels, upperHalf }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const width = size.width || 300;
   const height = size.height || (upperHalf ? 170 : 300);
-  const radius = Math.max(40, upperHalf ? Math.min(width / 2 - MARGIN, height - MARGIN - 18) : Math.min(width, height) / 2 - MARGIN);
+  const k = fontScale();
+  const margin = MARGIN * k;
+  const radius = Math.max(40, upperHalf ? Math.min(width / 2 - margin, height - margin - 18 * k) : Math.min(width, height) / 2 - margin);
   const cx = width / 2;
-  const cy = upperHalf ? MARGIN + radius : height / 2;
+  const cy = upperHalf ? margin + radius : height / 2;
   const r = (gain: number): number => radius * Math.max(0, 1 + (gain - max) / RANGE);
   const point = (angle: number, distance: number): [number, number] => {
     const radians = (angle * Math.PI) / 180;
@@ -87,7 +89,7 @@ export function PolarPlot({ title, cut, max, labels, upperHalf }: Props) {
               return <line key={angle} className="spoke" x1={cx} y1={cy} x2={x} y2={y} />;
             })}
           {RINGS.slice(1).map((ring) => (
-            <text key={ring} className="ring-label" x={cx + 3} y={cy - radius * (1 + ring / RANGE) - 3}>
+            <text key={ring} className="ring-label" x={cx + 3 * k} y={cy - radius * (1 + ring / RANGE) - 3 * k}>
               {ring}
             </text>
           ))}
@@ -100,9 +102,9 @@ export function PolarPlot({ title, cut, max, labels, upperHalf }: Props) {
           )}
           {labels.map((label, i) => {
             if (upperHalf && i === 3) return null;
-            const [x, y] = point(i * 90, radius + 14);
+            const [x, y] = point(i * 90, radius + 15 * k);
             return (
-              <text key={i} className="axis-label" x={x} y={y + 4} textAnchor="middle">
+              <text key={i} className="axis-label" x={x} y={y + 4.5 * k} textAnchor="middle">
                 {label}
               </text>
             );

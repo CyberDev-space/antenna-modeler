@@ -1,5 +1,6 @@
 import { resonance } from "../loads";
 import type { Load } from "../model";
+import { Hint } from "./Help";
 import { NumberField } from "./NumberField";
 import { PulseField } from "./PulseField";
 
@@ -20,9 +21,11 @@ export function LoadTable({ loads, onChange }: Props) {
         return (
           <div className="load" key={index}>
             <span className="index">{index + 1}</span>
-            <PulseField label="Місце" value={load.at} onChange={(at) => replace(index, { ...load, at })} />
+            <PulseField label="Місце" help="loadPulse" value={load.at} onChange={(at) => replace(index, { ...load, at })} />
             <label className="field">
-              <span>Тип</span>
+              <span>
+                <Hint topic="loadType">Тип</Hint>
+              </span>
               <select
                 value={load.kind}
                 onChange={(event) =>
@@ -40,19 +43,19 @@ export function LoadTable({ loads, onChange }: Props) {
             </label>
             {load.kind === "lc" ? (
               <>
-                <NumberField label="L, мкГн" value={load.inductance} onChange={(inductance) => replace(index, { ...load, inductance })} />
-                <NumberField label="C, пФ" value={load.capacitance} onChange={(capacitance) => replace(index, { ...load, capacitance })} />
+                <NumberField label="L, мкГн" help="loadL" value={load.inductance} onChange={(inductance) => replace(index, { ...load, inductance })} />
+                <NumberField label="C, пФ" help="loadC" value={load.capacitance} onChange={(capacitance) => replace(index, { ...load, capacitance })} />
                 <NumberField
                   label="Q"
-                  title="Добротність котушки, а без котушки — конденсатора. 0: без втрат"
+                  help="loadQ"
                   value={load.q}
                   onChange={(q) => replace(index, { ...load, q })}
                 />
               </>
             ) : (
               <>
-                <NumberField label="R, Ом" value={load.resistance} onChange={(resistance) => replace(index, { ...load, resistance })} />
-                <NumberField label="X, Ом" value={load.reactance} onChange={(reactance) => replace(index, { ...load, reactance })} />
+                <NumberField label="R, Ом" help="loadR" value={load.resistance} onChange={(resistance) => replace(index, { ...load, resistance })} />
+                <NumberField label="X, Ом" help="loadX" value={load.reactance} onChange={(reactance) => replace(index, { ...load, reactance })} />
               </>
             )}
             <button

@@ -4,7 +4,7 @@ import type { Deck } from "../deck";
 import { placedWires, roughMarks, type Point } from "../geometry";
 import { loadImpedance, resonance } from "../loads";
 import { formatPulse, type Model } from "../model";
-import { AXIS_NAMES, boom, directionText, elements, millimetres, planAxes, type ElementRow } from "../sheet";
+import { AXIS_NAMES, boom, directionText, elements, millimetres, planAxes, planDimensions, type ElementRow } from "../sheet";
 import { LineChart } from "./LineChart";
 import { PolarPlot } from "./PolarPlot";
 import { degrees, fixed, impedance, swrText } from "./Results";
@@ -39,11 +39,16 @@ interface Props {
 
 const GROUNDS = { free: "вільний простір", perfect: "ідеальна", real: "реальна" } as const;
 
-/** A drawing of the antenna in the plane where it reaches farthest, with the numbers of its elements and a scale. */
+/**
+ * A drawing of the antenna in the plane where it reaches farthest: the
+ * length of every element beside it, the spacings of elements along a boom
+ * in a chain below, the numbers of the elements, and a scale.
+ */
 function Plan({ model, deck, rows }: { model: Model; deck: Deck; rows: ElementRow[] }) {
   const wires = placedWires(model);
   const [a, b] = planAxes(model);
   const marks = deck.marks ?? roughMarks(model);
+  const layout = boom(rows);
   const points = wires.flatMap((wire) => [
     [wire.x1, wire.y1, wire.z1],
     [wire.x2, wire.y2, wire.z2],
@@ -52,47 +57,80 @@ function Plan({ model, deck, rows }: { model: Model; deck: Deck; rows: ElementRo
   const xs = points.map((p) => p[a]);
   const ys = points.map((p) => p[b]);
   const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-  const [width, margin] = [700, 34];
+  // Room for the dimensions: beside the elements, and for the chains below or to the left.
+  const chains = layout !== null && (layout.axis === a || layout.axis === b);
+  const across = chains && layout!.axis === a;
+  const margin = { left: chains && !across ? 84 : 34, right: 48, top: 30, bottom: (chains && across ? 74 : 28) + 26 };
+  const width = 720;
   const spanX = maxX - minX || 1;
   const spanY = maxY - minY || spanX * 0.05;
-  const scale = Math.min((width - 2 * margin) / spanX, 300 / spanY);
-  const height = Math.max(120, spanY * scale + 2 * margin + 20);
-  const x = (value: number): number => margin + (value - minX) * scale + (width - 2 * margin - spanX * scale) / 2;
-  const y = (value: number): number => height - margin - 20 - (value - minY) * scale;
+  const scale = Math.min((width - margin.left - margin.right) / spanX, 340 / spanY);
+  const height = margin.top + spanY * scale + margin.bottom;
+  const shift = (width - margin.left - margin.right - spanX * scale) / 2;
+  const project = (point: Point): [number, number] => [margin.left + shift + (point[a] - minX) * scale, margin.top + (maxY - point[b]) * scale];
+  const { dimensions, numbers } = planDimensions(rows, layout, [a, b], project);
   // A round length for the scale bar, about a quarter of the width.
-  const rough = (width / 4) / scale;
+  const rough = width / 4 / scale;
   const power = 10 ** Math.floor(Math.log10(rough));
   const bar = [1, 2, 5, 10].map((k) => k * power).filter((value) => value <= rough).pop() ?? power;
-  const at = (point: Point): [number, number] => [x(point[a]), y(point[b])];
 
   return (
-    <svg className="plan" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Креслення антени в площині ${AXIS_NAMES[a]}${AXIS_NAMES[b]}`}>
-      {wires.map((wire, index) => (
-        <line key={index} className="plan-wire" x1={x([wire.x1, wire.y1, wire.z1][a])} y1={y([wire.x1, wire.y1, wire.z1][b])} x2={x([wire.x2, wire.y2, wire.z2][a])} y2={y([wire.x2, wire.y2, wire.z2][b])} />
-      ))}
+    <svg className="plan" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Креслення антени в площині ${AXIS_NAMES[a]}${AXIS_NAMES[b]} з розмірами в міліметрах`}>
+      <defs>
+        <marker id="dim-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,1 L10,5 L0,9 Z" className="dim-arrow" />
+        </marker>
+      </defs>
+      {wires.map((wire, index) => {
+        const [p, q] = [project([wire.x1, wire.y1, wire.z1]), project([wire.x2, wire.y2, wire.z2])];
+        return <line key={index} className="plan-wire" x1={p[0]} y1={p[1]} x2={q[0]} y2={q[1]} />;
+      })}
       {marks.loads.map((point, index) => (
-        <circle key={`l${index}`} className="plan-load" cx={at(point)[0]} cy={at(point)[1]} r={4} />
+        <circle key={`l${index}`} className="plan-load" cx={project(point)[0]} cy={project(point)[1]} r={4} />
       ))}
       {marks.sources.map((point, index) => (
-        <circle key={`s${index}`} className="plan-source" cx={at(point)[0]} cy={at(point)[1]} r={4.5} />
+        <circle key={`s${index}`} className="plan-source" cx={project(point)[0]} cy={project(point)[1]} r={4.5} />
       ))}
-      {rows.map((row) => {
-        const [cx, cy] = at(row.centre);
-        return (
-          <text key={row.number} className="plan-label" x={cx + 6} y={cy - 6}>
-            {row.number}
+      {dimensions.map((dimension, index) => (
+        <g key={`d${index}`} className="dim">
+          {dimension.extensions.map(([from, to], k) => (
+            <line key={k} className="dim-extension" x1={from[0]} y1={from[1]} x2={to[0]} y2={to[1]} />
+          ))}
+          <line
+            className="dim-line"
+            x1={dimension.line[0][0]}
+            y1={dimension.line[0][1]}
+            x2={dimension.line[1][0]}
+            y2={dimension.line[1][1]}
+            markerStart="url(#dim-arrow)"
+            markerEnd="url(#dim-arrow)"
+          />
+          <text
+            className="dim-text"
+            x={dimension.label.at[0]}
+            y={dimension.label.at[1]}
+            textAnchor="middle"
+            dominantBaseline="central"
+            transform={`rotate(${dimension.label.angle} ${dimension.label.at[0]} ${dimension.label.at[1]})`}
+          >
+            {dimension.label.text}
           </text>
-        );
-      })}
+        </g>
+      ))}
+      {numbers.map((number) => (
+        <text key={number.text} className="plan-label" x={number.at[0]} y={number.at[1]} textAnchor="middle" dominantBaseline="central">
+          {number.text}
+        </text>
+      ))}
       <g className="plan-scale">
-        <line x1={margin} y1={height - 14} x2={margin + bar * scale} y2={height - 14} />
-        <line x1={margin} y1={height - 18} x2={margin} y2={height - 10} />
-        <line x1={margin + bar * scale} y1={height - 18} x2={margin + bar * scale} y2={height - 10} />
-        <text x={margin + bar * scale + 6} y={height - 10}>
+        <line x1={margin.left} y1={height - 12} x2={margin.left + bar * scale} y2={height - 12} />
+        <line x1={margin.left} y1={height - 16} x2={margin.left} y2={height - 8} />
+        <line x1={margin.left + bar * scale} y1={height - 16} x2={margin.left + bar * scale} y2={height - 8} />
+        <text x={margin.left + bar * scale + 6} y={height - 8}>
           {bar >= 1 ? `${bar} м` : `${millimetres(bar)} мм`}
         </text>
-        <text x={width - margin} y={height - 10} textAnchor="end">
-          {AXIS_NAMES[a]} → , {AXIS_NAMES[b]} ↑
+        <text x={width - 8} y={height - 8} textAnchor="end">
+          розміри в мм · {AXIS_NAMES[a]} праворуч, {AXIS_NAMES[b]} угору
         </text>
       </g>
     </svg>
@@ -184,7 +222,10 @@ export function PrintSheet({ model, deck, results, stale, sweep }: Props) {
 
       <h2>Креслення</h2>
       <Plan model={model} deck={deck} rows={rows} />
-      <p className="sheet-small">Помаранчеві точки — джерела, зелені — навантаження; числа — номери елементів у таблиці нижче.</p>
+      <p className="sheet-small">
+        Біля кожного елемента — його довжина; під антеною — відстані між центрами сусідніх елементів і загальна довжина, у мм. Помаранчеві точки —
+        джерела, зелені — навантаження; числа над елементами — їхні номери в таблиці нижче.
+      </p>
 
       <h2>Елементи</h2>
       <table className="sheet-table">

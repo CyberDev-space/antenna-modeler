@@ -1,4 +1,5 @@
 import type { Wire } from "../model";
+import { Hint } from "./Help";
 import { NumberField } from "./NumberField";
 
 interface Props {
@@ -29,10 +30,16 @@ export function WireTable({ wires, segments, onChange }: Props) {
           <tr>
             <th>№</th>
             {COORDINATES.map((name) => (
-              <th key={name}>{name.toUpperCase()}, м</th>
+              <th key={name}>
+                <Hint topic="wireEnds">{name.toUpperCase()}, м</Hint>
+              </th>
             ))}
-            <th>R, мм</th>
-            <th title="−1: програма вибирає сама">Сегм.</th>
+            <th>
+              <Hint topic="wireRadius">R, мм</Hint>
+            </th>
+            <th>
+              <Hint topic="wireSegments">Сегм.</Hint>
+            </th>
             <th />
           </tr>
         </thead>
