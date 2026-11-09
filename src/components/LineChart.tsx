@@ -11,8 +11,11 @@ export interface Series {
 
 interface Props {
   title: string;
-  /** Frequencies in MHz. */
+  /** The values along the horizontal axis: frequencies in MHz, unless `xUnit` says otherwise. */
   x: number[];
+  /** The unit of the horizontal axis for the readout, and how its values are written. */
+  xUnit?: string;
+  xFormat?: (value: number) => string;
   series: Series[];
   /** The range of the vertical axis; without it the range of the values. Values outside are drawn at the edge. */
   range?: [number, number];
@@ -30,7 +33,7 @@ const ROOM = { left: 52, right: 12, top: 10, bottom: 26 };
 const megahertz = (value: number): string => Number(value.toFixed(3)).toString();
 
 /** A chart of one or two quantities against frequency, with a readout under the pointer. It fills the space it is given. */
-export function LineChart({ title, x, series, range, guides = [], marker, format }: Props) {
+export function LineChart({ title, x, xUnit = "МГц", xFormat = megahertz, series, range, guides = [], marker, format }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const [host, size] = useSize<HTMLDivElement>();
   const WIDTH = size.width || 520;
@@ -65,7 +68,7 @@ export function LineChart({ title, x, series, range, guides = [], marker, format
     <figure className="chart">
       <figcaption>
         <span className="readout">
-          {hover !== null && `${megahertz(x[hover])} МГц `}
+          {hover !== null && `${xFormat(x[hover])} ${xUnit} `}
           {series.map((one) => (
             <span key={one.name} className={`legend tone-${one.tone}`}>
               {one.name}
@@ -97,7 +100,7 @@ export function LineChart({ title, x, series, range, guides = [], marker, format
           <g key={mark}>
             <line className="grid" x1={px(mark)} x2={px(mark)} y1={TOP} y2={HEIGHT - BOTTOM} />
             <text className="tick" x={px(mark)} y={HEIGHT - BOTTOM + 16 * k} textAnchor="middle">
-              {megahertz(mark)}
+              {xFormat(mark)}
             </text>
           </g>
         ))}

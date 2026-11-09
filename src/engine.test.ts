@@ -5,7 +5,10 @@ import { band, summarize, sweepPoints } from "./analysis";
 import { buildDeck, buildSweepDeck, exportDeck } from "./deck";
 import { importMaa } from "./maa";
 import { optimize, read } from "./optimizer";
+import { currentLines, magnitude } from "./currents";
+import { placedWires } from "./geometry";
 import { leesonTerms } from "./leeson";
+import { joinEnds } from "./segmentation";
 import { ALUMINIUM, COPPER, defaultModel, type Load, type Model, type Wire } from "./model";
 
 // The page runs the engine in a worker; here it runs in the test itself.
@@ -342,5 +345,44 @@ describe("Leeson's correction through the engine", () => {
     expect(stepped.impedance[1]).toBeGreaterThan(12);
     expect(Math.abs(corrected.impedance[1])).toBeLessThan(5);
     expect(corrected.frontToBack!).toBeGreaterThan(stepped.frontToBack! + 2);
+  });
+});
+
+describe("the currents through the engine", () => {
+  function currentsOf(model: Model) {
+    const deck = buildDeck(model);
+    const output = run(deck.text);
+    expect(output.error).toBeNull();
+    const [job] = output.jobs;
+    const solution = job.solutions[0];
+    const lines = currentLines(joinEnds(placedWires(model)), deck.equivalents, job.segments, solution.currents, solution.power!.input, model.ground.kind !== "free");
+    return { lines, summary: summarize(solution, model.reference, deck.feeds) };
+  }
+  const free: Model = { ...defaultModel, ground: { ...defaultModel.ground, kind: "free" } };
+
+  it("of a dipole are largest at its feed point, nothing at its tips, and feed 100 W into its resistance", () => {
+    const { lines, summary } = currentsOf(free);
+    expect(lines).toHaveLength(1);
+    const magnitudes = lines[0].samples.map((sample) => magnitude(sample.current));
+    expect([magnitudes[0], magnitudes.at(-1)]).toEqual([0, 0]);
+    const middle = magnitudes[Math.floor(magnitudes.length / 2)];
+    expect(middle).toBe(Math.max(...magnitudes));
+    // The current at the feed point, root mean square, puts 100 W into the input resistance.
+    expect(middle ** 2 * summary.impedance[0]).toBeCloseTo(100, 1);
+    magnitudes.forEach((value, k) => expect(value).toBeCloseTo(magnitudes[magnitudes.length - 1 - k], 6));
+  });
+
+  it("run over the tubes of an element that the engine got as Leeson's cylinder", () => {
+    const tube = (y1: number, y2: number, radius: number) => ({ ...defaultModel.wires[0], y1, y2, z1: 0, z2: 0, radius });
+    const tapered: Model = { ...free, wires: [tube(-5.18, -1, 0.01), tube(-1, 1, 0.015), tube(1, 5.18, 0.01)], sources: [{ at: { wire: 1, place: "c" }, phase: 0, voltage: 1 }] };
+    const { lines } = currentsOf(tapered);
+    expect(lines).toHaveLength(1);
+    const [line] = lines;
+    expect(line.equivalent).toBe(true);
+    expect(line.wires).toEqual([0, 1, 2]);
+    expect(line.length).toBeCloseTo(10.36, 9);
+    const middle = line.samples[Math.floor(line.samples.length / 2)];
+    expect(middle.distance).toBeCloseTo(5.18, 9);
+    expect(magnitude(middle.current)).toBe(Math.max(...line.samples.map((sample) => magnitude(sample.current))));
   });
 });

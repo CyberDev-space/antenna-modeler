@@ -3,6 +3,7 @@ import { summarize, type Summary } from "./analysis";
 import { LoadTable } from "./components/LoadTable";
 import { OptimizerPanel } from "./components/OptimizerPanel";
 import { Card } from "./components/Card";
+import { CurrentsPanel } from "./components/CurrentsPanel";
 import { HelpProvider, HelpSwitch, Hint } from "./components/Help";
 import { PrintSheet, type SheetSweep } from "./components/PrintSheet";
 import { PatternCards, SummaryTiles } from "./components/Results";
@@ -11,12 +12,15 @@ import { SourceTable } from "./components/SourceTable";
 import { SweepPanel } from "./components/SweepPanel";
 import { WireTable } from "./components/WireTable";
 import type { Output } from "nec2-wasm";
+import { currentLines, type CurrentLine } from "./currents";
 import { buildDeck, exportDeck, type Deck } from "./deck";
 import { solve, type Failure } from "./engine";
+import { placedWires } from "./geometry";
 import { download, encodeAnsi, fileName, openModel, readText, restoreModel, saveModel } from "./files";
 import { exportMaa } from "./maa";
 import { defaultModel, formatPulse, resultKey, sweepKey, type Model } from "./model";
 import type { PatternGrid } from "./pattern";
+import { joinEnds } from "./segmentation";
 
 // The view in space brings a large library: it is loaded after the page.
 const View3D = lazy(() => import("./components/View3D").then((module) => ({ default: module.View3D })));
@@ -44,6 +48,7 @@ interface FileNote {
 /** The tabs of the workspace. */
 const TABS = [
   ["view", "Вигляд і діаграми", "tabView"],
+  ["currents", "Струми", "tabCurrents"],
   ["sweep", "Розгортка", "tabSweep"],
   ["optimizer", "Оптимізація", "tabOptimizer"],
   ["report", "Звіт NEC-2", "tabReport"],
@@ -60,6 +65,8 @@ interface Solved {
   sources: string[];
   summary: Summary;
   pattern: PatternGrid;
+  /** The currents along the elements, at the power that the currents are given for. */
+  currents: CurrentLine[];
   warnings: string[];
   report: string;
   milliseconds: number;
@@ -117,17 +124,27 @@ export function App() {
 
   /** Shows the results of a model: of the button, or of the optimizer. */
   function present(solvedModel: Model, solvedDeck: Deck, output: Output, milliseconds: number) {
-    const solution = output.jobs[0].solutions[0];
+    const [job] = output.jobs;
+    const solution = job.solutions[0];
     const [pattern] = solution.patterns;
+    const overGround = solvedModel.ground.kind !== "free";
     setFailure(null);
     setSolved({
       model: resultKey(solvedModel),
       reference: solvedModel.reference,
-      overGround: solvedModel.ground.kind !== "free",
+      overGround,
       lossy: solvedModel.wireConductivity > 0 || solvedModel.loads.length > 0,
       sources: solvedModel.sources.map((source) => formatPulse(source.at)),
       summary: summarize(solution, solvedModel.reference, solvedDeck.feeds),
       pattern: { theta: pattern.theta, phi: pattern.phi, gain: pattern.gainTotal },
+      currents: currentLines(
+        joinEnds(placedWires(solvedModel)),
+        solvedDeck.equivalents,
+        job.segments,
+        solution.currents,
+        solution.power?.input ?? 0,
+        overGround,
+      ),
       warnings: output.warnings,
       report: output.report,
       milliseconds,
@@ -322,7 +339,12 @@ export function App() {
         <div className="tab-panel view-panel" role="tabpanel" id="panel-view" aria-labelledby="tab-view" hidden={tab !== "view"}>
           <Card title="Вигляд" className="view-card">
             <Suspense fallback={<p className="note">Завантажую…</p>}>
-              <View3D model={model} marks={deck.marks} pattern={solved && !stale ? solved.pattern : null} />
+              <View3D
+                model={model}
+                marks={deck.marks}
+                pattern={solved && !stale ? solved.pattern : null}
+                currents={solved && !stale ? solved.currents : null}
+              />
             </Suspense>
           </Card>
           {solved ? (
@@ -333,6 +355,14 @@ export function App() {
             <div className="patterns empty">
               <p className="note">Діаграми спрямованості з'являться після розрахунку.</p>
             </div>
+          )}
+        </div>
+
+        <div className="tab-panel" role="tabpanel" id="panel-currents" aria-labelledby="tab-currents" hidden={tab !== "currents"}>
+          {solved ? (
+            <CurrentsPanel lines={solved.currents} model={model} stale={stale} />
+          ) : (
+            <p className="note">Струми з'являться після розрахунку.</p>
           )}
         </div>
 

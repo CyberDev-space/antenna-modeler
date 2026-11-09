@@ -35,6 +35,10 @@ export interface Deck {
 export interface Equivalent {
   /** Its wires in the model, by index from 0. */
   wires: number[];
+  /** The tag of the wire that replaces them in the cards. */
+  tag: number;
+  /** The outer ends of the element in the model; the wire that replaces it points from the first to the second. */
+  ends: [Point, Point];
   /** The length and the radius of the wire that replaces them, in metres. */
   length: number;
   radius: number;
@@ -151,8 +155,8 @@ interface Substitution {
   holder: number[];
   /** Which wires of the model belong to a corrected element. */
   replaced: boolean[];
-  /** The corrected elements: their wires in the model and the wire of the engine that replaces them. */
-  chosen: { wires: number[]; index: number }[];
+  /** The corrected elements: their wires and outer ends in the model, and the wire of the engine that replaces them. */
+  chosen: { wires: number[]; ends: [Point, Point]; index: number }[];
   /** A place on the wires of the model as a place on the wires of the engine. */
   remap: (at: Pulse) => Pulse;
   /** What the user should know about the steps of radius that stay. */
@@ -237,7 +241,7 @@ function substitute(model: Model, wires: Wire[], lambda: number): Substitution {
     tags,
     holder,
     replaced: wires.map((_, index) => owner.has(index)),
-    chosen: chosen.map(({ element }, k) => ({ wires: element.wires, index: at[k] })),
+    chosen: chosen.map(({ element }, k) => ({ wires: element.wires, ends: element.ends, index: at[k] })),
     remap: (place) => (owner.has(place.wire) ? { wire: holder[place.wire], place: "c" } : { ...place, wire: holder[place.wire] }),
     warnings,
   };
@@ -323,7 +327,14 @@ function structure(model: Model): Structure {
   /** Counts of the wires of the engine as counts of the wires of the model: a corrected element has none of its own. */
   const ofModel = (counts: number[]): number[] => joined.map((_, index) => (replaced[index] ? 0 : counts[holder[index]]));
   const equivalents = (counts: number[]): Equivalent[] =>
-    chosen.map(({ wires: members, index }) => ({ wires: members, length: wireLength(wires[index]), radius: wires[index].radius, segments: counts[index] }));
+    chosen.map(({ wires: members, ends, index }) => ({
+      wires: members,
+      tag: tags[index],
+      ends,
+      length: wireLength(wires[index]),
+      radius: wires[index].radius,
+      segments: counts[index],
+    }));
 
   // The sources and the loads, with the words that the messages use for them.
   const pulses = [

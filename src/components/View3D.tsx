@@ -4,6 +4,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
+import { CURRENT_POWER, magnitude, type CurrentLine } from "../currents";
 import { bounds, farthest, feedPoint, placedWires, roughMarks, type Marks, type Point } from "../geometry";
 import type { Model } from "../model";
 import { PATTERN_RANGE, surface, viridis, type PatternGrid } from "../pattern";
@@ -15,6 +16,8 @@ interface Props {
   marks: Marks | null;
   /** The pattern of the results that belong to the model as it is; `null` without such results. */
   pattern: PatternGrid | null;
+  /** The currents of the same results; `null` without them. */
+  currents: CurrentLine[] | null;
 }
 
 /** What the view keeps between two models. */
@@ -27,7 +30,10 @@ interface Stage {
   content: THREE.Group;
   /** The pattern in space: replaced when the results change. */
   patternGroup: THREE.Group;
+  /** The curves of the currents over the wires: replaced when the results change. */
+  currentGroup: THREE.Group;
   wireMaterial: LineMaterial;
+  currentMaterial: LineMaterial;
   /** The marks of the sources and of the loads: spheres of radius 1 that are scaled for every picture. */
   markers: THREE.Mesh[];
   /** The request to show everything that the camera has answered; -1 before the first. */
@@ -59,14 +65,34 @@ function clear(group: THREE.Group) {
   group.clear();
 }
 
+/** The height of the curve of the largest current over its wire, as a part of the size of the antenna. */
+const CURRENT_HEIGHT = 0.25;
+
+/** The direction in which the curve of the current of a straight piece stands off it: up, or along X for an upright piece. */
+function standOff(axis: Point): Point {
+  const away = (reference: Point): Point => {
+    const along = reference[0] * axis[0] + reference[1] * axis[1] + reference[2] * axis[2];
+    return [reference[0] - along * axis[0], reference[1] - along * axis[1], reference[2] - along * axis[2]];
+  };
+  const up = away([0, 0, 1]);
+  const size = Math.hypot(...up);
+  if (size > 0.1) return [up[0] / size, up[1] / size, up[2] / size];
+  const side = away([1, 0, 0]);
+  const length = Math.hypot(...side);
+  return [side[0] / length, side[1] / length, side[2] / length];
+}
+
 /** The antenna in space: drag to turn it, scroll to zoom. The Z axis points up. */
-export function View3D({ model, marks, pattern }: Props) {
+export function View3D({ model, marks, pattern, currents }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const stage = useRef<Stage | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [fitRequest, setFitRequest] = useState(0);
   const [patternWanted, setPatternWanted] = useState(true);
+  const [currentsWanted, setCurrentsWanted] = useState(true);
   const showPattern = pattern !== null && patternWanted;
+  const showCurrents = currents !== null && currentsWanted;
+  const topCurrent = currents ? Math.max(0, ...currents.flatMap((line) => line.samples.map((sample) => magnitude(sample.current)))) : 0;
   const top = pattern ? Math.max(...pattern.gain) : 0;
   const { ground } = model;
   const wires = placedWires(model);
@@ -102,12 +128,14 @@ export function View3D({ model, marks, pattern }: Props) {
     const controls = new OrbitControls(camera, renderer.domElement);
     const content = new THREE.Group();
     const patternGroup = new THREE.Group();
-    scene.add(content, patternGroup);
+    const currentGroup = new THREE.Group();
+    scene.add(content, patternGroup, currentGroup);
     // Light gives the pattern its shape; the wires and the marks are drawn without it.
     const light = new THREE.DirectionalLight(0xffffff, 1.6);
     light.position.set(1, -1.5, 2);
     scene.add(new THREE.AmbientLight(0xffffff, 1.4), light);
     const wireMaterial = new LineMaterial({ linewidth: 3 });
+    const currentMaterial = new LineMaterial({ linewidth: 2 });
 
     const draw = () => {
       // The marks keep their size on the screen at any distance.
@@ -124,17 +152,34 @@ export function View3D({ model, marks, pattern }: Props) {
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       wireMaterial.resolution.set(width, height);
+      currentMaterial.resolution.set(width, height);
       draw();
     });
     resize.observe(element);
 
-    stage.current = { renderer, scene, camera, controls, content, patternGroup, wireMaterial, markers: [], fitted: -1, frame: null, draw };
+    stage.current = {
+      renderer,
+      scene,
+      camera,
+      controls,
+      content,
+      patternGroup,
+      currentGroup,
+      wireMaterial,
+      currentMaterial,
+      markers: [],
+      fitted: -1,
+      frame: null,
+      draw,
+    };
     return () => {
       resize.disconnect();
       controls.dispose();
       clear(content);
       clear(patternGroup);
+      clear(currentGroup);
       wireMaterial.dispose();
+      currentMaterial.dispose();
       renderer.dispose();
       renderer.domElement.remove();
       stage.current = null;
@@ -266,6 +311,31 @@ export function View3D({ model, marks, pattern }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pattern, showPattern, wiresKey, originKey]);
 
+  // The currents: over every element a curve whose height is the magnitude of the current there.
+  useEffect(() => {
+    const current = stage.current;
+    if (!current) return;
+    clear(current.currentGroup);
+    if (currents && showCurrents && topCurrent > 0) {
+      const height = CURRENT_HEIGHT * bounds(wires).radius;
+      const positions: number[] = [];
+      for (const line of currents) {
+        const axis: Point = [0, 1, 2].map((k) => (line.to[k] - line.from[k]) / line.length) as Point;
+        const off = standOff(axis);
+        const points = line.samples.map(({ distance, current: value }) => {
+          const rise = (magnitude(value) / topCurrent) * height;
+          return [0, 1, 2].map((k) => line.from[k] + axis[k] * distance + off[k] * rise);
+        });
+        for (let i = 0; i + 1 < points.length; i++) positions.push(...points[i], ...points[i + 1]);
+      }
+      current.currentMaterial.color = pageColour(host.current!, "--trace-b");
+      current.currentGroup.add(new LineSegments2(new LineSegmentsGeometry().setPositions(positions), current.currentMaterial));
+    }
+    current.draw();
+    // The results and the wires give the curves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currents, showCurrents, wiresKey]);
+
   // The colours of the legend, from the bottom of the range to the maximum.
   const legend = `linear-gradient(to right, ${[0, 0.25, 0.5, 0.75, 1]
     .map((part) => `rgb(${viridis(part).map((value) => Math.round(value * 255)).join(" ")})`)
@@ -282,6 +352,14 @@ export function View3D({ model, marks, pattern }: Props) {
           {loads.length > 0 && <span className="mark load-mark">навантаження</span>}
         </span>
         <span className="view-actions">
+          {currents && (
+            <Hint topic="currentsToggle">
+              <label className="toggle">
+                <input type="checkbox" checked={currentsWanted} onChange={(event) => setCurrentsWanted(event.target.checked)} />
+                Струми
+              </label>
+            </Hint>
+          )}
           {pattern && (
             <Hint topic="patternToggle">
               <label className="toggle">
@@ -297,6 +375,14 @@ export function View3D({ model, marks, pattern }: Props) {
           </Hint>
         </span>
       </div>
+      {showCurrents && topCurrent > 0 && (
+        <p className="pattern-legend">
+          <span className="current-swatch" aria-hidden="true" />
+          <span>
+            Струми: висота кривої над дротом — амплітуда струму; найбільший {topCurrent.toFixed(2)} А при {CURRENT_POWER} Вт.
+          </span>
+        </p>
+      )}
       {showPattern && (
         <p className="pattern-legend">
           <span className="ramp" style={{ background: legend }} aria-hidden="true" />
