@@ -4,7 +4,7 @@ import { span } from "../deck";
 import type { Model } from "../model";
 import { Card } from "./Card";
 import { Hint } from "./Help";
-import { LineChart } from "./LineChart";
+import { LineChart, rangeOf } from "./LineChart";
 
 interface Props {
   lines: CurrentLine[];
@@ -38,10 +38,7 @@ export function CurrentsPanel({ lines, model, stale }: Props) {
   // The phase of nothing has no meaning: the ends of a free element are left out of it.
   const live = line.samples.filter((sample) => magnitude(sample.current) > 0);
   const phases = unwrap(live.map((sample) => phase(sample.current)));
-  // A phase that barely changes is drawn as nearly flat: the axis spans at least this many degrees.
-  const [low, high] = [Math.min(...phases), Math.max(...phases)];
-  const spread = Math.max(PHASE_SPAN, (high - low) * 1.1);
-  const phaseRange: [number, number] = [(low + high) / 2 - spread / 2, (low + high) / 2 + spread / 2];
+  const phaseRange = rangeOf(phases, PHASE_SPAN);
   const top = Math.max(...magnitudes);
   const peak = line.samples[magnitudes.indexOf(top)];
   const centre = line.samples.reduce((best, sample) =>

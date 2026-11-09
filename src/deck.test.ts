@@ -147,6 +147,18 @@ describe("the deck of a model", () => {
     expect(cards.slice(6)).toEqual(["PT -1", "FR 0 23 0 0 13.6 0.05", "XQ 0", "EN", ""]);
   });
 
+  it("for a sweep in a direction asks at every frequency for the field there and behind it", () => {
+    const ahead = buildSweepDeck(defaultModel, { theta: 61.5, phi: 90 }).text.split("\n");
+    expect(ahead.slice(6)).toEqual(["PT -1", "FR 0 23 0 0 13.6 0.05", "RP 0 1 2 1000 61.5 90 0 180", "EN", ""]);
+    // Straight up there is no behind.
+    expect(buildSweepDeck(defaultModel, { theta: 0, phi: 0 }).text).toContain("RP 0 1 1 1000 0 0 0 0");
+    // With a coil every frequency has cards of its own, and every one ends with the field.
+    const coil: Model = { ...defaultModel, loads: [{ kind: "lc", at: { wire: 0, place: "c" }, inductance: 1, capacitance: 0, q: 0 }] };
+    const blocks = buildSweepDeck(coil, { theta: 90, phi: 0 }).text.split("\n");
+    expect(blocks.filter((card) => card.startsWith("RP"))).toHaveLength(23);
+    expect(blocks.filter((card) => card === "XQ 0")).toHaveLength(0);
+  });
+
   it("refuses a sweep without a range", () => {
     const sweep = (change: Partial<Model["sweep"]>) =>
       buildSweepDeck({ ...defaultModel, sweep: { ...defaultModel.sweep, ...change } });

@@ -55,16 +55,27 @@ describe("the standing-wave ratio", () => {
 });
 
 describe("a sweep", () => {
-  const point = (frequency: number, r: number): SweepPoint => ({ frequency, impedance: [r, 0], swr: swr([r, 0], 50) });
+  const point = (frequency: number, r: number): SweepPoint => ({ frequency, impedance: [r, 0], swr: swr([r, 0], 50), gain: null, frontToBack: null });
   // The SWR is 3, 2.5, 1.5, 1, 1.5, 2.5 at 14.0 to 14.5 MHz.
   const points = [150, 125, 75, 50, 75, 125].map((r, i) => point(14 + i / 10, r));
 
   it("has a point for every solution", () => {
     const solutions = [40, 50].map((r) => ({ ...solution(pattern(() => 0, 90), [r, 10]), frequency: r / 10 }));
+    // A whole pattern gives no gain of a directed sweep.
     expect(sweepPoints(solutions, 50)).toEqual([
-      { frequency: 4, impedance: [40, 10], swr: swr([40, 10], 50) },
-      { frequency: 5, impedance: [50, 10], swr: swr([50, 10], 50) },
+      { frequency: 4, impedance: [40, 10], swr: swr([40, 10], 50), gain: null, frontToBack: null },
+      { frequency: 5, impedance: [50, 10], swr: swr([50, 10], 50), gain: null, frontToBack: null },
     ]);
+  });
+
+  it("reads the gain ahead and the front-to-back ratio of a directed sweep", () => {
+    const directed = (gains: number[]) => {
+      const field = pattern(() => 0, 0);
+      return { ...solution({ ...field, theta: gains.map(() => 90), phi: gains.map((_, k) => 180 * k), gainTotal: gains }, [50, 0]), frequency: 14 };
+    };
+    expect(sweepPoints([directed([9.5, -12.5])], 50)[0]).toMatchObject({ gain: 9.5, frontToBack: 22 });
+    // Straight up there is one direction only, and no front and back.
+    expect(sweepPoints([directed([7])], 50)[0]).toMatchObject({ gain: 7, frontToBack: null });
   });
 
   it("finds the best point and the band around it", () => {

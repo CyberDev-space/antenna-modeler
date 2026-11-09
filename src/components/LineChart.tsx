@@ -32,6 +32,17 @@ const ROOM = { left: 52, right: 12, top: 10, bottom: 26 };
 
 const megahertz = (value: number): string => Number(value.toFixed(3)).toString();
 
+/**
+ * A range for values that spans at least `least`, around their middle: a
+ * quantity that barely changes is drawn nearly flat, not stretched over the
+ * whole height of the chart.
+ */
+export function rangeOf(values: number[], least: number): [number, number] {
+  const [low, high] = [Math.min(...values), Math.max(...values)];
+  const spread = Math.max(least, (high - low) * 1.1);
+  return [(low + high) / 2 - spread / 2, (low + high) / 2 + spread / 2];
+}
+
 /** A chart of one or two quantities against frequency, with a readout under the pointer. It fills the space it is given. */
 export function LineChart({ title, x, xUnit = "МГц", xFormat = megahertz, series, range, guides = [], marker, format }: Props) {
   const [hover, setHover] = useState<number | null>(null);

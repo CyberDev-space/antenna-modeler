@@ -874,6 +874,10 @@ legend {
   .charts {
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   }
+  /* Four charts of a sweep: the SWR and the impedance above, the gain and the front-to-back ratio below. */
+  .charts.four {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
 
 .chart {

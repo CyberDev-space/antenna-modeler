@@ -557,8 +557,19 @@ export function exportDeck(model: Model): Deck {
   return finish(base, [...lumped(model, base), ...request(model)]);
 }
 
-/** The deck for the sweep of the model: the impedance at every frequency, without patterns. */
-export function buildSweepDeck(model: Model): Deck {
+/** A direction of the far field: theta from the zenith and phi from the X axis, in degrees. */
+export interface Direction {
+  theta: number;
+  phi: number;
+}
+
+/**
+ * The deck for the sweep of the model: the impedance at every frequency.
+ * Given a direction, the field at every frequency there and in the opposite
+ * azimuth too, for the gain and the front-to-back ratio; no whole patterns,
+ * which would make the sweep many times slower.
+ */
+export function buildSweepDeck(model: Model, toward?: Direction): Deck {
   const { from, to, points } = model.sweep;
   const base = structure(model);
   if (!(from > 0)) base.errors.push("Початок розгортки має бути більшим за нуль.");
@@ -568,15 +579,20 @@ export function buildSweepDeck(model: Model): Deck {
   }
   if (base.errors.length > 0) return finish(base, []);
   const step = (to - from) / (points - 1);
+  const field = !toward
+    ? "XQ 0"
+    : toward.theta <= 0 || toward.theta >= 180
+      ? `RP 0 1 1 1000 ${number(toward.theta)} ${number(toward.phi)} 0 0`
+      : `RP 0 1 2 1000 ${number(toward.theta)} ${number(toward.phi)} 0 180`;
   // A coil or a capacitor has another impedance at every frequency: its
   // cards are written again for each one. Otherwise the engine steps itself.
   const steps = base.loads.some(({ load }) => load.kind === "lc")
     ? Array.from({ length: points }, (_, index) => from + index * step).flatMap((frequency) => [
         ...loading(model, base, frequency),
         `FR 0 1 0 0 ${number(frequency)} 0`,
-        "XQ 0",
+        field,
       ])
-    : [...loading(model, base, model.frequency), `FR 0 ${points} 0 0 ${number(from)} ${number(step)}`, "XQ 0"];
+    : [...loading(model, base, model.frequency), `FR 0 ${points} 0 0 ${number(from)} ${number(step)}`, field];
   // The currents are not printed: the report of a sweep would be long for nothing.
   return finish(base, ["PT -1", ...steps]);
 }

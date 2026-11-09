@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import type { Solution } from "nec2-wasm";
-import { band, bands, sweepPoints, type Range } from "../analysis";
-import { buildSweepDeck } from "../deck";
+import { band, bands, summarize, sweepPoints, type Range } from "../analysis";
+import { buildDeck, buildSweepDeck } from "../deck";
 import { solve, type Failure } from "../engine";
 import { formatPulse, sweepKey, type Model } from "../model";
 import type { SheetSweep } from "./PrintSheet";
 import { Card } from "./Card";
 import { Hint } from "./Help";
-import { LineChart } from "./LineChart";
+import { LineChart, rangeOf } from "./LineChart";
 import { NumberField } from "./NumberField";
 
 interface Props {
@@ -28,11 +28,17 @@ interface Swept {
   sources: string[];
   /** The sources that have a voltage: only they have an impedance to chart. */
   driven: boolean[];
+  /** The direction of the maximum at the frequency of the model, in which the gain is followed. */
+  toward: { azimuth: number; elevation: number };
   milliseconds: number;
 }
 
 /** The SWR limit of the band that is reported. */
 const LIMIT = 2;
+
+/** The least spans of the axes of the gain and of the front-to-back ratio, in dB. */
+export const GAIN_SPAN = 2;
+export const RATIO_SPAN = 10;
 
 const megahertz = (value: number): string => value.toFixed(3);
 
@@ -68,7 +74,17 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
     setFailure(null);
     const started = performance.now();
     try {
-      const output = await solve(deck.text);
+      // The gain is followed in the direction of the maximum at the frequency of the model, and the
+      // front-to-back ratio against the opposite azimuth: two directions at every frequency, not whole patterns.
+      const mainDeck = buildDeck(model);
+      const main = await solve(mainDeck.text);
+      if (main.error) {
+        setFailure({ model: modelText, lines: ["Ядро зупинило розрахунок:", main.error] });
+        setSwept(null);
+        return;
+      }
+      const { azimuth, elevation } = summarize(main.jobs[0].solutions[0], model.reference, mainDeck.feeds);
+      const output = await solve(buildSweepDeck(model, { theta: 90 - elevation, phi: azimuth }).text);
       if (output.error) {
         setFailure({ model: modelText, lines: ["Ядро зупинило розрахунок:", output.error] });
         setSwept(null);
@@ -82,6 +98,7 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
         feeds: deck.feeds,
         sources: model.sources.map((source) => formatPulse(source.at)),
         driven: model.sources.map((source) => source.voltage !== 0),
+        toward: { azimuth, elevation },
         milliseconds: performance.now() - started,
       });
     } catch (error) {
@@ -108,6 +125,19 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
   }, [swept, which]);
   const found = swept && band(points, LIMIT);
   const frequencies = points.map((point) => point.frequency);
+  const gains = points.map((point) => point.gain);
+  const ratios = points.map((point) => point.frontToBack);
+  const withGain = points.length > 0 && gains.every((value) => value !== null);
+  const withRatio = withGain && ratios.every((value) => value !== null);
+  // The gain and the front-to-back ratio over the band of the best SWR.
+  const inBand = found?.edges ? points.filter((point) => point.frequency >= found.edges![0] && point.frequency <= found.edges![1]) : [];
+  const spread = (values: number[]): string => `${Math.min(...values).toFixed(1)}–${Math.max(...values).toFixed(1)}`.replace(/-(?=\d)/g, "−");
+  const overBand =
+    withGain && inBand.length > 0
+      ? ` У цій смузі підсилення ${spread(inBand.map((point) => point.gain!))} дБі${
+          withRatio ? `, фронт/тил ${spread(inBand.map((point) => point.frontToBack!))} дБ` : ""
+        }.`
+      : "";
   const top = swept ? Math.min(10, Math.max(3, Math.ceil(Math.max(...points.map((point) => point.swr))))) : 3;
 
   return (
@@ -151,9 +181,10 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
           <p className="band">
             <Hint topic="sweepBand">
               Найменший КСХ {found.swr.toFixed(2)} на {megahertz(found.best)} МГц. {bandsText(bands(points, LIMIT))}
+              {overBand}
             </Hint>
           </p>
-          <div className="charts">
+          <div className={withGain ? "charts four" : "charts"}>
             <Card title={`КСХ (${swept.reference} Ом)`}>
             <LineChart
               title={`КСХ (${swept.reference} Ом)`}
@@ -177,9 +208,35 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
               format={(value) => value.toFixed(1).replace("-", "−")}
             />
             </Card>
+            {withGain && (
+              <Card title={<Hint topic="sweepGain">Підсилення, дБі</Hint>}>
+                <LineChart
+                  title="Підсилення, дБі"
+                  x={frequencies}
+                  series={[{ name: "підсилення", values: gains as number[], tone: "a" }]}
+                  range={rangeOf(gains as number[], GAIN_SPAN)}
+                  marker={swept.frequency}
+                  format={(value) => value.toFixed(2).replace("-", "−")}
+                />
+              </Card>
+            )}
+            {withRatio && (
+              <Card title={<Hint topic="sweepFrontToBack">Фронт/тил, дБ</Hint>}>
+                <LineChart
+                  title="Фронт/тил, дБ"
+                  x={frequencies}
+                  series={[{ name: "фронт/тил", values: ratios as number[], tone: "b" }]}
+                  range={rangeOf(ratios as number[], RATIO_SPAN)}
+                  marker={swept.frequency}
+                  format={(value) => value.toFixed(1).replace("-", "−")}
+                />
+              </Card>
+            )}
           </div>
           <p className="note">
             {points.length} частот за {swept.milliseconds.toFixed(0)} мс. Вертикальна риска: частота моделі.
+            {withGain &&
+              ` Підсилення — у напрямку максимуму на частоті моделі (азимут ${swept.toward.azimuth.toFixed(0)}°, кут ${swept.toward.elevation.toFixed(1)}°), фронт/тил — проти протилежного азимуту на тому самому куті.`}
           </p>
         </div>
       )}

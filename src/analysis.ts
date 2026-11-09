@@ -147,12 +147,16 @@ function firstDriven(found: Port[]): Port & { impedance: [number, number]; swr: 
   return port as Port & { impedance: [number, number]; swr: number };
 }
 
-/** The impedance at one frequency of a sweep. */
+/** The impedance at one frequency of a sweep, and the gain when the sweep asked for it. */
 export interface SweepPoint {
   /** MHz. */
   frequency: number;
   impedance: [number, number];
   swr: number;
+  /** The gain in dBi in the direction that the sweep was given: that of the maximum at the frequency of the model. */
+  gain: number | null;
+  /** That gain over the gain in the opposite azimuth, in dB; `null` without them, or straight up. */
+  frontToBack: number | null;
 }
 
 /**
@@ -164,7 +168,18 @@ export function sweepPoints(solutions: Solution[], reference: number, feeds?: nu
     const found = ports(solution, reference, feeds);
     const port = which === undefined ? firstDriven(found) : found[which];
     if (!port?.impedance) throw new Error("the source of the sweep has no voltage");
-    return { frequency: solution.frequency, impedance: port.impedance, swr: swr(port.impedance, reference) };
+    // The field of a directed sweep: ahead, and in the opposite azimuth unless the direction is straight up.
+    // A whole pattern is not that.
+    const field = solution.patterns[0]?.gainTotal ?? [];
+    const [ahead, behind] = field.length <= 2 ? field.map((gain) => Math.max(gain, NO_FIELD)) : [];
+    const gain = ahead !== undefined && ahead > NO_FIELD ? ahead : null;
+    return {
+      frequency: solution.frequency,
+      impedance: port.impedance,
+      swr: swr(port.impedance, reference),
+      gain,
+      frontToBack: gain !== null && behind !== undefined ? gain - behind : null,
+    };
   });
 }
 

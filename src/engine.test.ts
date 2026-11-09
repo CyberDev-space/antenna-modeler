@@ -386,3 +386,29 @@ describe("the currents through the engine", () => {
     expect(magnitude(middle.current)).toBe(Math.max(...line.samples.map((sample) => magnitude(sample.current))));
   });
 });
+
+describe("the gain in a sweep through the engine", () => {
+  it("is at the frequency of the model the gain and the front-to-back ratio of the results", () => {
+    const element = (x: number, half: number): Model["wires"] => [{ x1: x, y1: -half, z1: 0, x2: x, y2: half, z2: 0, radius: 0.003, segments: -1 }];
+    // A 3-element Yagi for 2 m in free space, swept around 145 MHz with its frequency in the middle.
+    const beam: Model = {
+      ...defaultModel,
+      wires: [...element(-0.42, 0.51), ...element(0, 0.48), ...element(0.31, 0.45)],
+      sources: [{ at: { wire: 1, place: "c" }, phase: 0, voltage: 1 }],
+      frequency: 145,
+      ground: { ...defaultModel.ground, kind: "free" },
+      sweep: { from: 144, to: 146, points: 5 },
+    };
+    const main = solveModel(beam);
+    const deck = buildSweepDeck(beam, { theta: 90 - main.elevation, phi: main.azimuth });
+    const output = run(deck.text);
+    expect(output.error).toBeNull();
+    const points = sweepPoints(output.jobs[0].solutions, beam.reference, deck.feeds);
+    const middle = points[2];
+    expect(middle.frequency).toBeCloseTo(145, 9);
+    expect(middle.gain!).toBeCloseTo(main.gain, 1);
+    expect(middle.frontToBack!).toBeCloseTo(main.frontToBack!, 1);
+    // A Yagi has its gain forward over the whole sweep.
+    for (const point of points) expect(point.gain!).toBeGreaterThan(5);
+  });
+});

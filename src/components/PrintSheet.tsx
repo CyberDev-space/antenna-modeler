@@ -5,9 +5,10 @@ import { placedWires, roughMarks, type Point } from "../geometry";
 import { loadImpedance, resonance } from "../loads";
 import { formatPulse, type Model } from "../model";
 import { AXIS_NAMES, boom, directionText, elements, millimetres, planAxes, planDimensions, type ElementRow } from "../sheet";
-import { LineChart } from "./LineChart";
+import { LineChart, rangeOf } from "./LineChart";
 import { PolarPlot } from "./PolarPlot";
 import { degrees, fixed, impedance, swrText } from "./Results";
+import { GAIN_SPAN, RATIO_SPAN } from "./SweepPanel";
 
 /** The results that the sheet prints, as the page holds them. */
 export interface SheetResults {
@@ -426,6 +427,32 @@ export function PrintSheet({ model, deck, results, stale, sweep }: Props) {
               format={(value) => value.toFixed(1)}
             />
           </figure>
+          {sweep.points.every((point) => point.gain !== null) && (
+            <figure className="sheet-chart">
+              <figcaption>Підсилення в напрямку максимуму, дБі</figcaption>
+              <LineChart
+                title="Підсилення"
+                x={sweep.points.map((point) => point.frequency)}
+                series={[{ name: "підсилення", values: sweep.points.map((point) => point.gain!), tone: "a" }]}
+                range={rangeOf(sweep.points.map((point) => point.gain!), GAIN_SPAN)}
+                marker={sweep.frequency}
+                format={(value) => value.toFixed(2)}
+              />
+            </figure>
+          )}
+          {sweep.points.every((point) => point.frontToBack !== null) && (
+            <figure className="sheet-chart">
+              <figcaption>Фронт/тил, дБ</figcaption>
+              <LineChart
+                title="Фронт/тил"
+                x={sweep.points.map((point) => point.frequency)}
+                series={[{ name: "фронт/тил", values: sweep.points.map((point) => point.frontToBack!), tone: "b" }]}
+                range={rangeOf(sweep.points.map((point) => point.frontToBack!), RATIO_SPAN)}
+                marker={sweep.frequency}
+                format={(value) => value.toFixed(1)}
+              />
+            </figure>
+          )}
         </section>
       )}
 
