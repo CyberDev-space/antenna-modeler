@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { summarize, type Summary } from "./analysis";
 import { LoadTable } from "./components/LoadTable";
+import { MatchingPanel } from "./components/MatchingPanel";
 import { OptimizerPanel } from "./components/OptimizerPanel";
 import { Card } from "./components/Card";
 import { CurrentsPanel } from "./components/CurrentsPanel";
@@ -50,6 +51,7 @@ const TABS = [
   ["view", "Вигляд і діаграми", "tabView"],
   ["currents", "Струми", "tabCurrents"],
   ["sweep", "Розгортка", "tabSweep"],
+  ["matching", "Узгодження", "tabMatching"],
   ["optimizer", "Оптимізація", "tabOptimizer"],
   ["report", "Звіт NEC-2", "tabReport"],
 ] as const;
@@ -59,6 +61,8 @@ interface Solved {
   /** The model that these results belong to, as text, to tell when they are out of date. */
   model: string;
   reference: number;
+  /** MHz. */
+  frequency: number;
   overGround: boolean;
   lossy: boolean;
   /** The places of the sources, to name them. */
@@ -132,6 +136,7 @@ export function App() {
     setSolved({
       model: resultKey(solvedModel),
       reference: solvedModel.reference,
+      frequency: solvedModel.frequency,
       overGround,
       lossy: solvedModel.wireConductivity > 0 || solvedModel.loads.length > 0,
       sources: solvedModel.sources.map((source) => formatPulse(source.at)),
@@ -368,6 +373,20 @@ export function App() {
 
         <div className="tab-panel" role="tabpanel" id="panel-sweep" aria-labelledby="tab-sweep" hidden={tab !== "sweep"}>
           <SweepPanel model={model} onChange={setModel} onResult={setLastSweep} />
+        </div>
+
+        <div className="tab-panel scroll" role="tabpanel" id="panel-matching" aria-labelledby="tab-matching" hidden={tab !== "matching"}>
+          {solved ? (
+            <MatchingPanel
+              impedance={solved.summary.impedance}
+              frequency={solved.frequency}
+              reference={solved.reference}
+              stale={stale}
+              source={solved.sources.length > 1 ? solved.sources[solved.summary.ports.findIndex((port) => port.impedance !== null)] : null}
+            />
+          ) : (
+            <p className="note">Узгодження з'явиться після розрахунку: йому потрібен вхідний опір антени.</p>
+          )}
         </div>
 
         <div className="tab-panel scroll optimizer-tab" role="tabpanel" id="panel-optimizer" aria-labelledby="tab-optimizer" hidden={tab !== "optimizer"}>

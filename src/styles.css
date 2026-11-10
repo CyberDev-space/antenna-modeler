@@ -1015,6 +1015,92 @@ pre {
   font-variant-numeric: tabular-nums;
 }
 
+/* The matching of the antenna to its line. */
+.matching {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.matching-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.matching-cards.stale {
+  opacity: 0.55;
+}
+
+.matching-cards p {
+  margin: 6px 0;
+}
+
+.networks section + section {
+  margin-top: 12px;
+}
+
+.networks h4 {
+  margin: 4px 0 2px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.networks ul {
+  margin: 2px 0 0;
+  padding-left: 1.2em;
+}
+
+.schematic {
+  display: block;
+  width: 100%;
+  max-width: 340px;
+  height: auto;
+}
+
+.schematic line,
+.schematic path {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+
+.schematic .plate {
+  stroke-width: 2.6;
+}
+
+.schematic .terminal {
+  fill: var(--surface);
+  stroke: var(--ink);
+  stroke-width: 1.4;
+}
+
+.schematic .node {
+  fill: var(--ink);
+}
+
+.schematic text {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.cables {
+  min-width: 0;
+  margin-top: 8px;
+}
+
+.cables td {
+  padding: 3px 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cables tr.best td {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* Lines of text stay short enough to read on a wide screen. */
 p.note,
 p.band,
