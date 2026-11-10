@@ -15,7 +15,7 @@ import { WireTable } from "./components/WireTable";
 import type { Output } from "nec2-wasm";
 import { currentLines, type CurrentLine } from "./currents";
 import { buildDeck, exportDeck, type Deck } from "./deck";
-import { solve, type Failure } from "./engine";
+import { solve, stopEngine, Stopped, type Failure } from "./engine";
 import { placedWires } from "./geometry";
 import { download, encodeAnsi, fileName, openModel, readText, restoreModel, saveModel } from "./files";
 import { exportMaa } from "./maa";
@@ -169,6 +169,8 @@ export function App() {
       }
       present(model, deck, output, performance.now() - started);
     } catch (error) {
+      // A stopped computation leaves the results as they were.
+      if (error instanceof Stopped) return;
       setFailure({ model: key, lines: ["Розрахунок не вдався:", String(error)] });
       setSolved(null);
     } finally {
@@ -266,9 +268,15 @@ export function App() {
           </button>
         </Hint>
         <Hint topic="compute">
-          <button type="button" className="primary compute" onClick={compute} disabled={!canCompute} aria-keyshortcuts="Control+Enter">
-            {running ? "Рахую…" : "Розрахувати"}
-          </button>
+          {running ? (
+            <button type="button" className="primary compute" onClick={stopEngine}>
+              Зупинити
+            </button>
+          ) : (
+            <button type="button" className="primary compute" onClick={compute} disabled={!canCompute} aria-keyshortcuts="Control+Enter">
+              Розрахувати
+            </button>
+          )}
         </Hint>
       </header>
 

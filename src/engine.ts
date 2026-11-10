@@ -29,6 +29,26 @@ function start(): Worker {
   return created;
 }
 
+/** The error of a computation that the user stopped. */
+export class Stopped extends Error {
+  constructor() {
+    super("the computation was stopped");
+    this.name = "Stopped";
+  }
+}
+
+/**
+ * Stops whatever the engine computes now: every computation that waits for
+ * it fails with `Stopped`, and the next one starts the engine anew.
+ */
+export function stopEngine(): void {
+  if (!worker) return;
+  worker.terminate();
+  worker = undefined;
+  for (const request of waiting.values()) request.reject(new Stopped());
+  waiting.clear();
+}
+
 /** Runs a deck of NEC cards in the engine, off the thread of the page. */
 export function solve(deck: string): Promise<Output> {
   worker ??= start();

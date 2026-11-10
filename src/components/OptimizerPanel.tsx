@@ -2,7 +2,7 @@ import type { Output } from "nec2-wasm";
 import { useRef, useState } from "react";
 import { summarize, type Summary } from "../analysis";
 import { buildDeck, type Deck } from "../deck";
-import { solve } from "../engine";
+import { solve, stopEngine, Stopped } from "../engine";
 import { element } from "../geometry";
 import type { Model } from "../model";
 import {
@@ -174,7 +174,9 @@ export function OptimizerPanel({ model, onBetter, onRestore }: Props) {
       );
       setStatus((now) => now && { ...now, reason: REASONS[outcome.reason] });
     } catch (error) {
-      setProblems([`Пошук не вдався: ${error instanceof Error ? error.message : String(error)}`]);
+      // Stopped in the middle of a computation: the best model so far is already shown.
+      if (error instanceof Stopped) setStatus((now) => now && { ...now, reason: REASONS.stopped });
+      else setProblems([`Пошук не вдався: ${error instanceof Error ? error.message : String(error)}`]);
     } finally {
       setRunning(false);
     }
@@ -265,7 +267,14 @@ export function OptimizerPanel({ model, onBetter, onRestore }: Props) {
 
       <div className="actions">
         {running ? (
-          <button type="button" className="primary" onClick={() => (stop.current = true)}>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => {
+              stop.current = true;
+              stopEngine();
+            }}
+          >
             Зупинити
           </button>
         ) : (

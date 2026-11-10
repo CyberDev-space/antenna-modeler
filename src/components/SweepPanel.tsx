@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Solution } from "nec2-wasm";
 import { band, bands, summarize, sweepPoints, type Range } from "../analysis";
 import { buildDeck, buildSweepDeck } from "../deck";
-import { solve, type Failure } from "../engine";
+import { solve, stopEngine, Stopped, type Failure } from "../engine";
 import { formatPulse, sweepKey, type Model } from "../model";
 import type { SheetSweep } from "./PrintSheet";
 import { Card } from "./Card";
@@ -102,6 +102,8 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
         milliseconds: performance.now() - started,
       });
     } catch (error) {
+      // A stopped sweep leaves the charts of the one before.
+      if (error instanceof Stopped) return;
       setFailure({ model: modelText, lines: ["Розрахунок не вдався:", String(error)] });
       setSwept(null);
     } finally {
@@ -147,9 +149,15 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
         <NumberField label="До, МГц" help="sweepRange" value={model.sweep.to} onChange={(to) => setSweep({ to })} />
         <NumberField label="Точок" help="sweepRange" value={model.sweep.points} onChange={(points) => setSweep({ points: Math.round(points) })} />
         <Hint topic="sweepRun">
-          <button type="button" className="primary" onClick={sweep} disabled={running || deck.errors.length > 0}>
-            {running ? "Рахую…" : "Розгорнути"}
-          </button>
+          {running ? (
+            <button type="button" className="primary" onClick={stopEngine}>
+              Зупинити
+            </button>
+          ) : (
+            <button type="button" className="primary" onClick={sweep} disabled={deck.errors.length > 0}>
+              Розгорнути
+            </button>
+          )}
         </Hint>
         {swept && swept.sources.length > 1 && (
           <label className="field">
