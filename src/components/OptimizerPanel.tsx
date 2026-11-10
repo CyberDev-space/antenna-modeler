@@ -259,6 +259,14 @@ export function OptimizerPanel({ model, onBetter, onRestore }: Props) {
           {GOALS.map(([key, label, help]) => (
             <NumberField key={key} label={label} help={help} value={goals[key]} onChange={(weight) => setGoals({ ...goals, [key]: Math.max(0, weight) })} />
           ))}
+          {goals.reactance > 0 && (
+            <NumberField
+              label="Цільова X, Ом"
+              help="goalReactanceTarget"
+              value={goals.reactanceTarget}
+              onChange={(reactanceTarget) => setGoals({ ...goals, reactanceTarget })}
+            />
+          )}
           {goals.elevation > 0 && (
             <NumberField label="Цільовий кут, °" help="goalTarget" value={goals.target} onChange={(target) => setGoals({ ...goals, target })} />
           )}

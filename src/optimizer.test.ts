@@ -100,12 +100,19 @@ const result = (change: Partial<Summary>): Summary =>
 
 describe("the score", () => {
   it("adds the points of every goal times its weight", () => {
-    const goals: Goals = { gain: 1, frontToBack: 1, swr: 1, reactance: 1, elevation: 1, target: 20 };
+    const goals: Goals = { gain: 1, frontToBack: 1, swr: 1, reactance: 1, elevation: 1, target: 20, reactanceTarget: 0 };
     expect(score(result({ gain: 7, frontToBack: 24, swr: 2, impedance: [30, -40], elevation: 14 }), goals)).toBeCloseTo(7 + 8 - 4 - 2 - 2, 12);
     // F/B beyond 30 dB counts as 30.
     expect(score(result({ frontToBack: 45 }), { ...goals, gain: 0, swr: 0, reactance: 0, elevation: 0 })).toBe(10);
     // A goal without weight leaves out even an infinite SWR.
     expect(score(result({ gain: 3, swr: Infinity }), { ...defaultGoals, frontToBack: 0, swr: 0 })).toBe(15);
+  });
+
+  it("counts the reactance from its target", () => {
+    const only: Goals = { ...defaultGoals, gain: 0, frontToBack: 0, swr: 0, reactance: 1, reactanceTarget: -25 };
+    expect(score(result({ impedance: [25, -25] }), only)).toBe(0);
+    expect(score(result({ impedance: [25, 15] }), only)).toBeCloseTo(-2, 12);
+    expect(score(result({ impedance: [25, -45] }), only)).toBeCloseTo(-1, 12);
   });
 });
 

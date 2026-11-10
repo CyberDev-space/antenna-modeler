@@ -305,13 +305,28 @@ describe("the optimizer through the engine", () => {
       return output.error ? null : { summary: summarize(output.jobs[0].solutions[0], model.reference, deck.feeds) };
     };
     const length = { kind: "length", wire: 0, min: 9, max: 11.5, step: 0.1 } as const;
-    const goals = { gain: 0, frontToBack: 0, swr: 0, reactance: 1, elevation: 0, target: 0 };
+    const goals = { gain: 0, frontToBack: 0, swr: 0, reactance: 1, elevation: 0, target: 0, reactanceTarget: 0 };
     const outcome = await optimize(dipole, [length], goals, evaluate, () => {}, () => false);
     expect(outcome.reason).toBe("converged");
     expect(Math.abs(outcome.evaluation.summary.impedance[1])).toBeLessThan(1);
     // A half-wave dipole of thin wire resonates a few percent short of half a wavelength.
     expect(read(outcome.model, length)).toBeGreaterThan(9.9);
     expect(read(outcome.model, length)).toBeLessThan(10.5);
+  });
+
+  it("makes a dipole short enough for the reactance that a hairpin match asks", async () => {
+    const dipole: Model = { ...defaultModel, ground: { ...defaultModel.ground, kind: "free" } };
+    const evaluate = async (model: Model) => {
+      const deck = buildDeck(model);
+      if (deck.errors.length > 0) return null;
+      const output = run(deck.text);
+      return output.error ? null : { summary: summarize(output.jobs[0].solutions[0], model.reference, deck.feeds) };
+    };
+    const length = { kind: "length", wire: 0, min: 9, max: 11.5, step: 0.1 } as const;
+    const goals = { gain: 0, frontToBack: 0, swr: 0, reactance: 1, elevation: 0, target: 0, reactanceTarget: -25 };
+    const outcome = await optimize(dipole, [length], goals, evaluate, () => {}, () => false);
+    expect(outcome.evaluation.summary.impedance[1]).toBeCloseTo(-25, 0);
+    expect(read(outcome.model, length)).toBeLessThan(10.3);
   });
 });
 

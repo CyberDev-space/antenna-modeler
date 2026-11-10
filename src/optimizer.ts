@@ -19,7 +19,12 @@ export type Variable =
 /** A variable with its limits and the step that the search begins with. */
 export type Setting = Variable & { min: number; max: number; step: number };
 
-/** How much every goal weighs; 0 leaves it out. `target` is the elevation in degrees that the goal `elevation` aims at. */
+/**
+ * How much every goal weighs; 0 leaves it out. `target` is the elevation in
+ * degrees that the goal `elevation` aims at, and `reactanceTarget` the input
+ * reactance in ohms that the goal `reactance` aims at: 0 for resonance, a
+ * capacitive one for a hairpin match.
+ */
 export interface Goals {
   gain: number;
   frontToBack: number;
@@ -27,9 +32,10 @@ export interface Goals {
   reactance: number;
   elevation: number;
   target: number;
+  reactanceTarget: number;
 }
 
-export const defaultGoals: Goals = { gain: 5, frontToBack: 3, swr: 5, reactance: 0, elevation: 0, target: 15 };
+export const defaultGoals: Goals = { gain: 5, frontToBack: 3, swr: 5, reactance: 0, elevation: 0, target: 15, reactanceTarget: 0 };
 
 const ends = (wire: Wire): [Point, Point] => [
   [wire.x1, wire.y1, wire.z1],
@@ -166,14 +172,14 @@ const MOST_FRONT_TO_BACK = 30;
  * The score of a result, to be made as large as possible: every goal gives
  * points, which its weight multiplies. A decibel of gain is a point, and so
  * are 3 dB of F/B, a halving of SWR - 1 near a match, 20 ohms of reactance
- * and 3 degrees of elevation off the target.
+ * off its target and 3 degrees of elevation off theirs.
  */
 export function score(summary: Summary, goals: Goals): number {
   const terms: [number, () => number][] = [
     [goals.gain, () => summary.gain],
     [goals.frontToBack, () => Math.min(summary.frontToBack ?? 0, MOST_FRONT_TO_BACK) / 3],
     [goals.swr, () => (Number.isFinite(summary.swr) ? -4 * Math.log2(summary.swr) : -Infinity)],
-    [goals.reactance, () => -Math.abs(summary.impedance[1]) / 20],
+    [goals.reactance, () => -Math.abs(summary.impedance[1] - goals.reactanceTarget) / 20],
     [goals.elevation, () => -Math.abs(summary.elevation - goals.target) / 3],
   ];
   return terms.reduce((total, [weight, points]) => (weight > 0 ? total + weight * points() : total), 0);

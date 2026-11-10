@@ -183,7 +183,11 @@ export function MatchingPanel({ impedance, frequency, reference, stale, source }
                 З двох трубок Ø {diameter} мм на відстані {spacing} мм шпилька має хвильовий опір {pin.lineImpedance.toFixed(0)} Ом і довжину{" "}
                 <strong>{(pin.length * 1000).toFixed(0)} мм</strong> від точки живлення до перемички.
               </p>
-              <p className="note">Вкорочення трохи змінює й активний опір: після нього перерахуйте модель і, якщо треба, повторіть.</p>
+              <p className="note">
+                Вкоротити вібратор може оптимізатор: змінна — довжина активного вібратора, ціль — реактивність з цільовою X ={" "}
+                {pin.antennaReactance.toFixed(1).replace("-", "−")} Ом, решта ваг 0. Вкорочення трохи змінює й активний опір: після нього
+                перегляньте цю картку знову.
+              </p>
             </>
           ) : spacing > diameter ? (
             <p className="note">Шпилька узгоджує лише антену з активним опором, меншим за опір лінії ({reference} Ом).</p>
