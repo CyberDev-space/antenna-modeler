@@ -35,6 +35,8 @@ interface Props {
   onBetter: (model: Model, evaluation: Evaluation) => void;
   /** The model as it was before the search, to go back to. */
   onRestore: (model: Model) => void;
+  /** The search begins: the whole of it is one step to take back. */
+  onRunStart?: () => void;
 }
 
 /** The search gives up after this many computations. */
@@ -112,7 +114,7 @@ interface Status {
 const fixed = (value: number, digits: number): string => value.toFixed(digits).replace("-", "−");
 
 /** The optimizer: what may vary within which limits, what to aim at, and the search itself. */
-export function OptimizerPanel({ model, onBetter, onRestore }: Props) {
+export function OptimizerPanel({ model, onBetter, onRestore, onRunStart }: Props) {
   const [settings, setSettings] = useState<Setting[]>([]);
   const [goals, setGoals] = useState<Goals>(defaultGoals);
   const [running, setRunning] = useState(false);
@@ -139,6 +141,7 @@ export function OptimizerPanel({ model, onBetter, onRestore }: Props) {
     stop.current = false;
     setRunning(true);
     setStart(model);
+    onRunStart?.();
     let evaluations = 0;
     let first: number | null = null;
     setStatus({ evaluations, first, best: null, summary: null, reason: null });

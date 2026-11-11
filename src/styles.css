@@ -132,6 +132,17 @@ body {
   gap: 6px;
 }
 
+.history-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.history-actions button {
+  padding: 4px 9px;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
 .topbar button,
 .topbar label.button {
   margin-top: 0;

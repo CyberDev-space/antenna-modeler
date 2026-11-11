@@ -57,6 +57,18 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
+/** How many steps Ctrl+Z can take back. */
+const HISTORY = 100;
+
+/** Changes closer together than this, in milliseconds, as the keys of one number, are one step. */
+const ONE_STEP = 800;
+
+/** Whether a key goes into a field that takes back its own typing. */
+function typing(target: EventTarget | null): boolean {
+  if (target instanceof HTMLInputElement) return !["checkbox", "radio", "button", "submit", "file", "range", "color"].includes(target.type);
+  return target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable);
+}
+
 interface Solved {
   /** The model that these results belong to, as text, to tell when they are out of date. */
   model: string;
@@ -86,6 +98,59 @@ export function App() {
   const [lastSweep, setLastSweep] = useState<(SheetSweep & { key: string }) | null>(null);
   const [matching, setMatching] = useState<MatchingInputs>(defaultMatchingInputs);
 
+  // The steps that Ctrl+Z takes back and Ctrl+Shift+Z brings again.
+  const past = useRef<Model[]>([]);
+  const future = useRef<Model[]>([]);
+  const lastEdit = useRef(0);
+  const [, redraw] = useState(0);
+
+  /** Changes the model as the user does, as a step that can be taken back; `step` makes it a step of its own. */
+  function edit(next: Model, step = false) {
+    const now = Date.now();
+    if (step || now - lastEdit.current > ONE_STEP) {
+      past.current = [...past.current.slice(1 - HISTORY), model];
+      future.current = [];
+      redraw((count) => count + 1);
+    }
+    lastEdit.current = step ? 0 : now;
+    setModel(next);
+  }
+  function undo() {
+    const previous = past.current.at(-1);
+    if (!previous) return;
+    past.current = past.current.slice(0, -1);
+    future.current = [...future.current, model];
+    lastEdit.current = 0;
+    setModel(previous);
+    redraw((count) => count + 1);
+  }
+  function redo() {
+    const next = future.current.at(-1);
+    if (!next) return;
+    future.current = future.current.slice(0, -1);
+    past.current = [...past.current, model];
+    lastEdit.current = 0;
+    setModel(next);
+    redraw((count) => count + 1);
+  }
+  const historyRef = useRef({ undo, redo });
+  historyRef.current = { undo, redo };
+  useEffect(() => {
+    const press = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || typing(event.target)) return;
+      // By the place of the key, so that it works with any layout, Ukrainian too.
+      if (event.code === "KeyZ" && !event.shiftKey) {
+        event.preventDefault();
+        historyRef.current.undo();
+      } else if ((event.code === "KeyZ" && event.shiftKey) || event.code === "KeyY") {
+        event.preventDefault();
+        historyRef.current.redo();
+      }
+    };
+    window.addEventListener("keydown", press);
+    return () => window.removeEventListener("keydown", press);
+  }, []);
+
   async function open(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     // The same file can be chosen again.
@@ -93,7 +158,7 @@ export function App() {
     if (!file) return;
     try {
       const opened = openModel(await readText(file), model);
-      setModel(opened.model);
+      edit(opened.model, true);
       setFileNote({ title: `Відкрито ${file.name}`, notes: opened.notes });
     } catch (error) {
       setFileNote({ title: `${file.name}: ${error instanceof Error ? error.message : String(error)}`, notes: [], failed: true });
@@ -223,7 +288,7 @@ export function App() {
               className="text"
               placeholder="Назва моделі"
               value={model.name}
-              onChange={(event) => setModel({ ...model, name: event.target.value })}
+              onChange={(event) => edit({ ...model, name: event.target.value })}
             />
           </Hint>
         </label>
@@ -254,11 +319,37 @@ export function App() {
               type="button"
               className="quiet"
               onClick={() => {
-                setModel(defaultModel);
+                edit(defaultModel, true);
                 setFileNote(null);
               }}
             >
               Приклад
+            </button>
+          </Hint>
+        </div>
+        <div className="history-actions">
+          <Hint topic="undo">
+            <button
+              type="button"
+              className="quiet"
+              aria-label="Скасувати зміну"
+              aria-keyshortcuts="Control+Z"
+              onClick={undo}
+              disabled={past.current.length === 0}
+            >
+              ↶
+            </button>
+          </Hint>
+          <Hint topic="redo">
+            <button
+              type="button"
+              className="quiet"
+              aria-label="Повернути зміну"
+              aria-keyshortcuts="Control+Shift+Z"
+              onClick={redo}
+              disabled={future.current.length === 0}
+            >
+              ↷
             </button>
           </Hint>
         </div>
@@ -298,13 +389,13 @@ export function App() {
           </ul>
         )}
         <h2>Дроти</h2>
-        <WireTable wires={model.wires} segments={deck.segments} equivalents={deck.equivalents} onChange={(wires) => setModel({ ...model, wires })} />
+        <WireTable wires={model.wires} segments={deck.segments} equivalents={deck.equivalents} onChange={(wires) => edit({ ...model, wires })} />
         <h2>Джерела</h2>
-        <SourceTable sources={model.sources} onChange={(sources) => setModel({ ...model, sources })} />
+        <SourceTable sources={model.sources} onChange={(sources) => edit({ ...model, sources })} />
         <h2>Навантаження</h2>
-        <LoadTable loads={model.loads} onChange={(loads) => setModel({ ...model, loads })} />
+        <LoadTable loads={model.loads} onChange={(loads) => edit({ ...model, loads })} />
         <h2>Частота, земля, матеріал</h2>
-        <Settings model={model} onChange={setModel} equivalents={deck.equivalents} />
+        <Settings model={model} onChange={edit} equivalents={deck.equivalents} />
       </aside>
 
       <main className="workspace">
@@ -381,7 +472,7 @@ export function App() {
         </div>
 
         <div className="tab-panel" role="tabpanel" id="panel-sweep" aria-labelledby="tab-sweep" hidden={tab !== "sweep"}>
-          <SweepPanel model={model} onChange={setModel} onResult={setLastSweep} />
+          <SweepPanel model={model} onChange={edit} onResult={setLastSweep} />
         </div>
 
         <div className="tab-panel scroll" role="tabpanel" id="panel-matching" aria-labelledby="tab-matching" hidden={tab !== "matching"}>
@@ -407,7 +498,8 @@ export function App() {
               setModel(better);
               present(better, evaluation.deck, evaluation.output, evaluation.milliseconds);
             }}
-            onRestore={setModel}
+            onRunStart={() => edit(model, true)}
+            onRestore={(start) => edit(start, true)}
           />
           {/* The patterns of the best model so far fill the rest. */}
           {solved && (
