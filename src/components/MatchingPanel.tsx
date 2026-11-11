@@ -1,9 +1,17 @@
-import { useState } from "react";
 import { swr } from "../analysis";
 import { hairpin, lNetworks, quarterWave, throughQuarterWave, type Impedance, type LNetwork, type Part } from "../matching";
 import { Card } from "./Card";
 import { Hint } from "./Help";
 import { NumberField } from "./NumberField";
+
+/** What the user chose for the hairpin and the transformer: millimetres, and the velocity factor of the cable. */
+export interface MatchingInputs {
+  diameter: number;
+  spacing: number;
+  velocity: number;
+}
+
+export const defaultMatchingInputs: MatchingInputs = { diameter: 6, spacing: 50, velocity: 0.66 };
 
 interface Props {
   /** The input impedance of the antenna at the frequency of the model, in ohms. */
@@ -16,10 +24,12 @@ interface Props {
   stale: boolean;
   /** The place of the source whose impedance it is, when the model has several. */
   source: string | null;
+  inputs: MatchingInputs;
+  onInputs: (inputs: MatchingInputs) => void;
 }
 
 /** Cables for a quarter-wave transformer: one cable, or two of them in parallel. */
-const CABLES: [impedance: number, name: string][] = [
+export const CABLES: [impedance: number, name: string][] = [
   [25, "два кабелі 50 Ом паралельно"],
   [37.5, "два кабелі 75 Ом паралельно"],
   [50, "кабель 50 Ом"],
@@ -28,11 +38,11 @@ const CABLES: [impedance: number, name: string][] = [
 ];
 
 const minus = (text: string): string => text.replace(/-/g, "−");
-const ohms = ([r, x]: Impedance): string => `${r.toFixed(1)} ${x < 0 ? "−" : "+"} j${Math.abs(x).toFixed(1)} Ом`;
-const reactance = (x: number): string => `${x < 0 ? "−" : "+"}j${Math.abs(x).toFixed(1)} Ом`;
+export const ohms = ([r, x]: Impedance): string => `${r.toFixed(1)} ${x < 0 ? "−" : "+"} j${Math.abs(x).toFixed(1)} Ом`;
+export const reactance = (x: number): string => `${x < 0 ? "−" : "+"}j${Math.abs(x).toFixed(1)} Ом`;
 
 /** The value of a coil or a capacitor in the units that a builder uses. */
-function value(part: Part): string {
+export function value(part: Part): string {
   if (part.kind === "coil") {
     const microhenries = part.value * 1e6;
     return microhenries < 0.1 ? `${(microhenries * 1000).toPrecision(3)} нГн` : `${microhenries.toPrecision(3)} мкГн`;
@@ -41,7 +51,7 @@ function value(part: Part): string {
   return picofarads >= 10000 ? `${(picofarads / 1000).toPrecision(3)} нФ` : `${picofarads.toPrecision(3)} пФ`;
 }
 
-const partName = (part: Part): string => (part.kind === "coil" ? "котушка" : "конденсатор");
+export const partName = (part: Part): string => (part.kind === "coil" ? "котушка" : "конденсатор");
 
 /** A coil or a capacitor drawn along a line from (x1, y1) to (x2, y2), horizontal or vertical. */
 function Element({ part, x1, y1, x2, y2 }: { part: Part | null; x1: number; y1: number; x2: number; y2: number }) {
@@ -89,7 +99,7 @@ function Element({ part, x1, y1, x2, y2 }: { part: Part | null; x1: number; y1: 
 }
 
 /** The drawing of an L network: the line on the left, the antenna on the right. */
-function Schematic({ network }: { network: LNetwork }) {
+export function Schematic({ network }: { network: LNetwork }) {
   const [top, bottom] = [26, 96];
   const shuntX = network.shuntAt === "line" ? 64 : 216;
   return (
@@ -122,10 +132,11 @@ function Schematic({ network }: { network: LNetwork }) {
 }
 
 /** Three ways to match the antenna to its line at the frequency of the model. */
-export function MatchingPanel({ impedance, frequency, reference, stale, source }: Props) {
-  const [diameter, setDiameter] = useState(6);
-  const [spacing, setSpacing] = useState(50);
-  const [velocity, setVelocity] = useState(0.66);
+export function MatchingPanel({ impedance, frequency, reference, stale, source, inputs, onInputs }: Props) {
+  const { diameter, spacing, velocity } = inputs;
+  const setDiameter = (value: number) => onInputs({ ...inputs, diameter: value });
+  const setSpacing = (value: number) => onInputs({ ...inputs, spacing: value });
+  const setVelocity = (value: number) => onInputs({ ...inputs, velocity: value });
   const [r, x] = impedance;
   const networks = lNetworks(impedance, reference, frequency);
   const pin = hairpin(r, reference, frequency, diameter / 1000, spacing / 1000);

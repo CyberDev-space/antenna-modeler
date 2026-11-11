@@ -1,5 +1,5 @@
 import type { Summary, SweepPoint } from "../analysis";
-import { bands } from "../analysis";
+import { bands, swr } from "../analysis";
 import { span, type Deck } from "../deck";
 import { placedWires, roughMarks, type Point } from "../geometry";
 import { loadImpedance, resonance } from "../loads";
@@ -9,12 +9,16 @@ import { LineChart, rangeOf } from "./LineChart";
 import { PolarPlot } from "./PolarPlot";
 import { degrees, fixed, impedance, swrText } from "./Results";
 import { GAIN_SPAN, RATIO_SPAN } from "./SweepPanel";
+import { CABLES, ohms, partName, reactance, Schematic, value, type MatchingInputs } from "./MatchingPanel";
+import { hairpin, lNetworks, quarterWave, throughQuarterWave } from "../matching";
 
 /** The results that the sheet prints, as the page holds them. */
 export interface SheetResults {
   summary: Summary;
   sources: string[];
   reference: number;
+  /** MHz. */
+  frequency: number;
   overGround: boolean;
   lossy: boolean;
   warnings: string[];
@@ -36,6 +40,8 @@ interface Props {
   /** The results do not belong to the model as it is. */
   stale: boolean;
   sweep: SheetSweep | null;
+  /** What the user chose for the hairpin and the transformer. */
+  matching: MatchingInputs;
 }
 
 const GROUNDS = { free: "вільний простір", perfect: "ідеальна", real: "реальна" } as const;
@@ -143,7 +149,7 @@ function Plan({ model, deck, rows }: { model: Model; deck: Deck; rows: ElementRo
  * millimetres, its tubes, where the elements sit, the results, the patterns
  * and the sweep. It is shown only when the page is printed or saved as PDF.
  */
-export function PrintSheet({ model, deck, results, stale, sweep }: Props) {
+export function PrintSheet({ model, deck, results, stale, sweep, matching }: Props) {
   const rows = elements(model);
   const layout = boom(rows);
   const wires = placedWires(model);
@@ -456,6 +462,8 @@ export function PrintSheet({ model, deck, results, stale, sweep }: Props) {
         </section>
       )}
 
+      {results && !stale && <SheetMatching results={results} matching={matching} />}
+
       {(deck.warnings.length > 0 || deck.equivalents.length > 0 || (results && results.warnings.length > 0)) && (
         <>
           <h2>Примітки</h2>
@@ -481,5 +489,57 @@ export function PrintSheet({ model, deck, results, stale, sweep }: Props) {
         тонких дротів без ізоляції; перед виготовленням перевірте модель на власній конструкції.
       </footer>
     </article>
+  );
+}
+
+/** The matching to the line on the sheet: the L networks drawn, the hairpin and the best quarter-wave cable. */
+function SheetMatching({ results, matching }: { results: SheetResults; matching: MatchingInputs }) {
+  const { impedance: load } = results.summary;
+  const { reference, frequency } = results;
+  const networks = lNetworks(load, reference, frequency);
+  const pin = hairpin(load[0], reference, frequency, matching.diameter / 1000, matching.spacing / 1000);
+  const best = CABLES.map(([line, name]) => ({ line, name, swr: swr(throughQuarterWave(load, line), reference) })).reduce((one, other) =>
+    other.swr < one.swr ? other : one,
+  );
+  return (
+    <section>
+      <h2>Узгодження з лінією {reference} Ом</h2>
+      <p>
+        Вхідний опір {ohms(load)} на {frequency} МГц, КСХ {swr(load, reference).toFixed(2)}.
+      </p>
+      {networks.length > 0 && (
+        <div className="sheet-matching">
+          {networks.map((network, k) => (
+            <figure key={k}>
+              <Schematic network={network} />
+              <figcaption>
+                L-ланка, варіант {k + 1}:{" "}
+                {[
+                  network.series && `послідовно ${partName(network.series)} ${value(network.series)} (${reactance(network.series.reactance)})`,
+                  network.shunt &&
+                    `паралельно з боку ${network.shuntAt === "line" ? "лінії" : "антени"} ${partName(network.shunt)} ${value(network.shunt)} (${reactance(network.shunt.reactance)})`,
+                ]
+                  .filter(Boolean)
+                  .join("; ")}
+                .
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
+      {pin && (
+        <p>
+          <strong>Шпилька:</strong> вкоротити активний вібратор до реактивності {reactance(pin.antennaReactance)}; шпилька з двох трубок Ø{" "}
+          {matching.diameter} мм на відстані {matching.spacing} мм між осями, хвильовий опір {pin.lineImpedance.toFixed(0)} Ом, довжина{" "}
+          {(pin.length * 1000).toFixed(0)} мм від точки живлення до перемички ({(pin.inductance * 1e6).toPrecision(3)} мкГн).
+        </p>
+      )}
+      {matching.velocity > 0 && matching.velocity <= 1 && (
+        <p>
+          <strong>Чвертьхвильовий трансформатор:</strong> найкраще — {best.name} ({best.line} Ом), КСХ {best.swr.toFixed(2)}; довжина{" "}
+          {(quarterWave(frequency, matching.velocity) * 1000).toFixed(0)} мм при коефіцієнті укорочення {matching.velocity}.
+        </p>
+      )}
+    </section>
   );
 }

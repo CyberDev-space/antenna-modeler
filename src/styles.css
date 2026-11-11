@@ -1268,6 +1268,26 @@ p.band,
   font-size: 10pt;
 }
 
+.sheet-matching {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 16px;
+  margin: 6px 0;
+}
+
+.sheet-matching figure {
+  margin: 0;
+  break-inside: avoid;
+}
+
+.sheet-matching .schematic {
+  max-width: 300px;
+}
+
+.sheet-matching figcaption {
+  font-size: 9pt;
+}
+
 /* A look at the sheet on the screen, as it will print. */
 body.sheet-preview .app {
   display: none;

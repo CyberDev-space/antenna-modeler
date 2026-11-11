@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { summarize, type Summary } from "./analysis";
 import { LoadTable } from "./components/LoadTable";
-import { MatchingPanel } from "./components/MatchingPanel";
+import { defaultMatchingInputs, MatchingPanel, type MatchingInputs } from "./components/MatchingPanel";
 import { OptimizerPanel } from "./components/OptimizerPanel";
 import { Card } from "./components/Card";
 import { CurrentsPanel } from "./components/CurrentsPanel";
@@ -84,6 +84,7 @@ export function App() {
   const [fileNote, setFileNote] = useState<FileNote | null>(null);
   const [tab, setTab] = useState<Tab>("view");
   const [lastSweep, setLastSweep] = useState<(SheetSweep & { key: string }) | null>(null);
+  const [matching, setMatching] = useState<MatchingInputs>(defaultMatchingInputs);
 
   async function open(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -391,6 +392,8 @@ export function App() {
               reference={solved.reference}
               stale={stale}
               source={solved.sources.length > 1 ? solved.sources[solved.summary.ports.findIndex((port) => port.impedance !== null)] : null}
+              inputs={matching}
+              onInputs={setMatching}
             />
           ) : (
             <p className="note">Узгодження з'явиться після розрахунку: йому потрібен вхідний опір антени.</p>
@@ -434,6 +437,7 @@ export function App() {
       results={solved}
       stale={stale}
       sweep={lastSweep && lastSweep.key === sweepKey(model) ? lastSweep : null}
+      matching={matching}
     />
     </HelpProvider>
   );
