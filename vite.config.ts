@@ -1,5 +1,5 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
@@ -9,5 +9,6 @@ export default defineConfig({
   worker: { format: "es" },
   // The view in space is one large chunk, three.js, that is loaded after the page.
   build: { chunkSizeWarningLimit: 700 },
-  test: { environment: "node" },
+  // The tests in a browser are for Playwright, not for Vitest.
+  test: { environment: "node", exclude: [...configDefaults.exclude, "e2e/**"] },
 });

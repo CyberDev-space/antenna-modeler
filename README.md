@@ -59,6 +59,7 @@ It needs a current Node (22 or newer).
 npm install
 npm run dev      # the page at http://localhost:5173
 npm test         # the tests, the example through the engine among them
+npm run e2e      # the page in Chrome: the production build, its buttons, tabs, help and layout on a phone
 npm run build    # the files of the site in dist/
 ```
 
@@ -106,7 +107,7 @@ EN
 | 3D | three.js |
 | Charts | our own SVG: line charts for sweeps and polar plots for patterns; a Smith chart is planned |
 | Format | our own JSON; import and export of `.maa`; export of `.nec`; a link that holds a model is planned |
-| Tests | Vitest; reference results from nec2c |
+| Tests | Vitest, with reference results from nec2c; Playwright for the page in Chrome |
 | License | MIT, like the engine |
 
 At first the engine was to be the ready-made package [`@necpp-engine/wasm`](https://www.npmjs.com/package/@necpp-engine/wasm) (NEC2++, GPL). On 2026-11-21 it was decided to write an engine of our own instead: a port of the public-domain nec2c to Rust. The code of NEC2++ and xnec2c is not read for it. The rules are in [PROVENANCE.md](https://github.com/CyberDev-space/nec2-rs/blob/main/PROVENANCE.md) of nec2-rs.
