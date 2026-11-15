@@ -1080,6 +1080,31 @@ pre {
   font-size: 0.77rem;
 }
 
+/* The form that moves the antenna to another frequency. */
+.scale-toggle {
+  align-self: end;
+  margin: 0;
+}
+
+.scale-form {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: end;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.scale-form button {
+  margin: 0;
+}
+
+.scale-form .toggle {
+  align-self: center;
+}
+
 /* The switch of Leeson's correction, with what it replaced. */
 .taper-correction {
   flex-basis: 100%;

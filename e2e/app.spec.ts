@@ -151,3 +151,16 @@ test("edits an element by its length, about its centre", async ({ page }) => {
   await expect(page.getByLabel("Дріт 1, Y1")).toHaveValue("-5.1");
   await expect(page.getByLabel("Дріт 5, Y2")).toHaveValue("5.1");
 });
+
+test("moves the antenna to another frequency, with its diameters", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Перенести на частоту…" }).click();
+  await page.getByLabel("Нова частота, МГц").fill("28.3");
+  await page.getByRole("button", { name: "Перенести", exact: true }).click();
+  await expect(page.getByLabel("Частота, МГц")).toHaveValue("28.3");
+  await expect(page.getByLabel("Дріт 1, Y1")).toHaveValue("-2.59");
+  await expect(page.getByLabel("Дріт 1, радіус")).toHaveValue("0.5");
+  // One step back brings the antenna for 20 m.
+  await page.keyboard.press("Control+z");
+  await expect(page.getByLabel("Частота, МГц")).toHaveValue("14.15");
+});

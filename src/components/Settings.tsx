@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { span, type Equivalent } from "../deck";
 import { ALUMINIUM, COPPER, type GroundKind, type Model } from "../model";
+import { scaleModel } from "../scale";
 import { taperedElements } from "../taper";
 import { Hint } from "./Help";
 import { NumberField } from "./NumberField";
@@ -8,7 +9,8 @@ import { N, t } from "../i18n";
 
 interface Props {
   model: Model;
-  onChange: (model: Model) => void;
+  /** A change of the model; `step` makes it a step of its own for Ctrl+Z. */
+  onChange: (model: Model, step?: boolean) => void;
   /** The elements of tubes that the engine gets as Leeson's equivalent cylinders. */
   equivalents: Equivalent[];
 }
@@ -37,10 +39,50 @@ export function Settings({ model, onChange, equivalents }: Props) {
   // user's own also when its value is that of a metal.
   const [typed, setTyped] = useState<number | null>(null);
   const own = !named || typed === model.wireConductivity;
+  // The form that moves the whole antenna to another frequency.
+  const [scaling, setScaling] = useState(false);
+  const [target, setTarget] = useState(model.frequency);
+  const [withRadii, setWithRadii] = useState(true);
 
   return (
     <div className="settings">
       <NumberField label={t("Частота, МГц")} help="frequency" value={model.frequency} onChange={(frequency) => onChange({ ...model, frequency })} />
+      <Hint topic="scaleTo">
+        <button
+          type="button"
+          className="quiet scale-toggle"
+          aria-expanded={scaling}
+          onClick={() => {
+            setTarget(model.frequency);
+            setScaling(!scaling);
+          }}
+        >
+          {t("Перенести на частоту…")}
+        </button>
+      </Hint>
+      {scaling && (
+        <div className="scale-form">
+          <NumberField label={t("Нова частота, МГц")} help="scaleTo" value={target} onChange={setTarget} />
+          <label className="toggle">
+            <input type="checkbox" checked={withRadii} onChange={(event) => setWithRadii(event.target.checked)} />
+            <Hint topic="scaleRadii">{t("разом із діаметрами")}</Hint>
+          </label>
+          <button
+            type="button"
+            className="primary"
+            disabled={!(target > 0) || target === model.frequency}
+            onClick={() => {
+              onChange(scaleModel(model, target, withRadii), true);
+              setScaling(false);
+            }}
+          >
+            {t("Перенести")}
+          </button>
+          <button type="button" className="quiet" onClick={() => setScaling(false)}>
+            {t("Скасувати")}
+          </button>
+        </div>
+      )}
       <NumberField label={t("Лінія, Ом")} help="reference" value={model.reference} onChange={(reference) => onChange({ ...model, reference })} />
       <label className="field">
         <span>

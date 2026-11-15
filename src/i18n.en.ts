@@ -399,4 +399,9 @@ export const EN: Record<string, string> = {
   "вкоротити активний вібратор до реактивності {target}; шпилька з двох трубок Ø {diameter} мм на відстані {spacing} мм між осями, хвильовий опір {impedance} Ом, довжина {length} мм від точки живлення до перемички ({inductance} мкГн).": "shorten the driven element to a reactance of {target}; a hairpin of two tubes of Ø {diameter} mm, {spacing} mm apart between axes, impedance {impedance} Ω, length {length} mm from the feed point to the short ({inductance} µH).",
   "Чвертьхвильовий трансформатор:": "Quarter-wave transformer:",
   "найкраще — {cable} ({impedance} Ом), КСХ {swr}; довжина {length} мм при коефіцієнті укорочення {velocity}.": "best is {cable} ({impedance} Ω), SWR {swr}; length {length} mm at a velocity factor of {velocity}.",
+  "Перенести на частоту…": "Move to a frequency…",
+  "Нова частота, МГц": "New frequency, MHz",
+  "разом із діаметрами": "with the diameters",
+  "Перенести": "Move",
+  "Скасувати": "Cancel",
 };

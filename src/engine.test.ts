@@ -8,6 +8,7 @@ import { optimize, read } from "./optimizer";
 import { currentLines, magnitude } from "./currents";
 import { placedWires } from "./geometry";
 import { leesonTerms } from "./leeson";
+import { scaleModel } from "./scale";
 import { joinEnds } from "./segmentation";
 import { ALUMINIUM, COPPER, defaultModel, type Load, type Model, type Wire } from "./model";
 
@@ -425,5 +426,15 @@ describe("the gain in a sweep through the engine", () => {
     expect(middle.frontToBack!).toBeCloseTo(main.frontToBack!, 1);
     // A Yagi has its gain forward over the whole sweep.
     for (const point of points) expect(point.gain!).toBeGreaterThan(5);
+  });
+});
+
+describe("a model moved to another frequency through the engine", () => {
+  it("is the same antenna there when its diameters move too", () => {
+    const free: Model = { ...defaultModel, ground: { ...defaultModel.ground, kind: "free" } };
+    const [before, after] = [solveModel(free), solveModel(scaleModel(free, 28.3, true))];
+    expect(after.impedance[0]).toBeCloseTo(before.impedance[0], 6);
+    expect(after.impedance[1]).toBeCloseTo(before.impedance[1], 6);
+    expect(after.gain).toBeCloseTo(before.gain, 6);
   });
 });

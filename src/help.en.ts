@@ -282,6 +282,22 @@ export const TOPICS_EN: Record<TopicKey, Topic> = {
     affects: "All results and the automatic segmentation. The sweep range is set separately.",
     defaults: "14.15 MHz in the example; for an MMANA file, its own frequency.",
   },
+  scaleTo: {
+    title: "Move to a frequency",
+    what: "Scales the whole antenna to another frequency, as MMANA does: every length, the height over the ground too, is multiplied by the old frequency over the new one.",
+    how: [
+      "So an antenna for 20 m can move to 17 m or to 2 m: it keeps its size in wavelengths.",
+      "Coils and capacitors get the values that have the same reactance at the new frequency; the sweep range moves with the frequency.",
+      "The step can be undone: Ctrl+Z.",
+    ],
+    affects: "Every dimension of the model, the frequency, the loads and the sweep.",
+  },
+  scaleRadii: {
+    title: "With the diameters",
+    what: "Scale the diameters of the wires too. Only then is the moved antenna the same antenna electrically: the same impedance, gain and pattern.",
+    how: ["Clear it if you will build with the same tubes: the resonance then moves a little, and the optimizer can bring it back."],
+    defaults: "On.",
+  },
   reference: {
     title: "Line, Ω",
     what: "The characteristic impedance of the feed line. The SWR is computed relative to it.",
