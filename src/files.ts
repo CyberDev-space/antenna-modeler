@@ -1,5 +1,6 @@
 import { importMaa } from "./maa";
 import { defaultModel, type Ground, type Load, type Model, type Pulse, type Source, type Sweep, type Wire } from "./model";
+import { t } from "./i18n";
 
 /** What marks a file of this program. */
 const FORMAT = "antenna-modeler";
@@ -103,10 +104,10 @@ export function openModel(text: string, base: Model): Opened {
     try {
       parsed = JSON.parse(text);
     } catch {
-      throw new Error("Файл пошкоджено: це не JSON.");
+      throw new Error(t("Файл пошкоджено: це не JSON."));
     }
     const model = isFields(parsed) && parsed.format === FORMAT ? restoreModel(parsed.model) : null;
-    if (!model) throw new Error("Це не файл моделі цієї програми.");
+    if (!model) throw new Error(t("Це не файл моделі цієї програми."));
     return { model, notes: [] };
   }
   return importMaa(text, base);

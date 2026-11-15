@@ -1,6 +1,7 @@
 import { useState, type PointerEvent } from "react";
 import type { Cut } from "../analysis";
 import { fontScale, useSize } from "../useSize";
+import { t } from "../i18n";
 
 interface Props {
   title: string;
@@ -58,7 +59,10 @@ export function PolarPlot({ title, cut, max, labels, upperHalf }: Props) {
     });
     setHover(cut.angle.length > 0 ? nearest : null);
   };
-  const readout = hover === null ? null : `${Number(cut.angle[hover].toFixed(1))}°: ${cut.gain[hover] <= -900 ? "немає поля" : `${cut.gain[hover].toFixed(2)} дБі`}`;
+  const readout =
+    hover === null
+      ? null
+      : `${Number(cut.angle[hover].toFixed(1))}°: ${cut.gain[hover] <= -900 ? t("немає поля") : t("{gain} дБі", { gain: cut.gain[hover].toFixed(2) })}`;
 
   return (
     <figure className="plot">

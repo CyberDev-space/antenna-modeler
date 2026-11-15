@@ -19,7 +19,9 @@ import {
 } from "../optimizer";
 import type { TopicKey } from "../help";
 import { Hint } from "./Help";
+import { impedance } from "./Results";
 import { NumberField } from "./NumberField";
+import { N, t } from "../i18n";
 
 /** A computed model: its result, and what the panel of results shows of it. */
 export interface Evaluation {
@@ -44,15 +46,15 @@ const LIMIT = 400;
 
 /** The kinds of variables, as the list offers them. */
 const KINDS: { key: string; label: string; make: (target: number) => Variable }[] = [
-  { key: "length", label: "Довжина елемента", make: (wire) => ({ kind: "length", wire }) },
-  { key: "x", label: "Положення елемента по X", make: (wire) => ({ kind: "position", wire, axis: "x" }) },
-  { key: "y", label: "Положення елемента по Y", make: (wire) => ({ kind: "position", wire, axis: "y" }) },
-  { key: "z", label: "Положення елемента по Z", make: (wire) => ({ kind: "position", wire, axis: "z" }) },
-  { key: "inductance", label: "Навантаження: L", make: (load) => ({ kind: "load", load, part: "inductance" }) },
-  { key: "capacitance", label: "Навантаження: C", make: (load) => ({ kind: "load", load, part: "capacitance" }) },
-  { key: "resistance", label: "Навантаження: R", make: (load) => ({ kind: "load", load, part: "resistance" }) },
-  { key: "reactance", label: "Навантаження: X", make: (load) => ({ kind: "load", load, part: "reactance" }) },
-  { key: "phase", label: "Фаза джерела", make: (source) => ({ kind: "phase", source }) },
+  { key: "length", label: N("Довжина елемента"), make: (wire) => ({ kind: "length", wire }) },
+  { key: "x", label: N("Положення елемента по X"), make: (wire) => ({ kind: "position", wire, axis: "x" }) },
+  { key: "y", label: N("Положення елемента по Y"), make: (wire) => ({ kind: "position", wire, axis: "y" }) },
+  { key: "z", label: N("Положення елемента по Z"), make: (wire) => ({ kind: "position", wire, axis: "z" }) },
+  { key: "inductance", label: N("Навантаження: L"), make: (load) => ({ kind: "load", load, part: "inductance" }) },
+  { key: "capacitance", label: N("Навантаження: C"), make: (load) => ({ kind: "load", load, part: "capacitance" }) },
+  { key: "resistance", label: N("Навантаження: R"), make: (load) => ({ kind: "load", load, part: "resistance" }) },
+  { key: "reactance", label: N("Навантаження: X"), make: (load) => ({ kind: "load", load, part: "reactance" }) },
+  { key: "phase", label: N("Фаза джерела"), make: (source) => ({ kind: "phase", source }) },
 ];
 
 const kindOf = (variable: Variable): string =>
@@ -90,17 +92,17 @@ function around(model: Model, variable: Variable): Setting {
 }
 
 const GOALS: [key: keyof Goals, label: string, help: TopicKey][] = [
-  ["gain", "Підсилення", "goalGain"],
-  ["frontToBack", "Фронт/тил", "goalFrontToBack"],
-  ["swr", "КСХ", "goalSwr"],
-  ["reactance", "Реактивність", "goalReactance"],
-  ["elevation", "Кут випромінювання", "goalElevation"],
+  ["gain", N("Підсилення"), "goalGain"],
+  ["frontToBack", N("Фронт/тил"), "goalFrontToBack"],
+  ["swr", N("КСХ"), "goalSwr"],
+  ["reactance", N("Реактивність"), "goalReactance"],
+  ["elevation", N("Кут випромінювання"), "goalElevation"],
 ];
 
 const REASONS: Record<Outcome<unknown>["reason"], string> = {
-  converged: "Кращого кроку немає: пошук завершено.",
-  limit: `Пошук зупинено після ${LIMIT} розрахунків: можна продовжити ще раз.`,
-  stopped: "Пошук зупинено.",
+  converged: N("Кращого кроку немає: пошук завершено."),
+  limit: N("Пошук зупинено після {limit} розрахунків: можна продовжити ще раз."),
+  stopped: N("Пошук зупинено."),
 };
 
 interface Status {
@@ -132,9 +134,9 @@ export function OptimizerPanel({ model, onBetter, onRestore, onRunStart }: Props
 
   async function run() {
     const found = check(model, settings);
-    if (!weighted) found.push("Дайте вагу хоча б одній цілі.");
+    if (!weighted) found.push(t("Дайте вагу хоча б одній цілі."));
     const deck = buildDeck(model);
-    if (deck.errors.length > 0) found.push(...deck.errors.map((error) => `Модель не рахується: ${error}`));
+    if (deck.errors.length > 0) found.push(...deck.errors.map((error) => t("Модель не рахується: {error}", { error })));
     setProblems(found);
     if (found.length > 0 || settings.length === 0) return;
 
@@ -179,18 +181,16 @@ export function OptimizerPanel({ model, onBetter, onRestore, onRunStart }: Props
     } catch (error) {
       // Stopped in the middle of a computation: the best model so far is already shown.
       if (error instanceof Stopped) setStatus((now) => now && { ...now, reason: REASONS.stopped });
-      else setProblems([`Пошук не вдався: ${error instanceof Error ? error.message : String(error)}`]);
+      else setProblems([t("Пошук не вдався: {error}", { error: error instanceof Error ? error.message : String(error) })]);
     } finally {
       setRunning(false);
     }
   }
 
   return (
-    <section className="optimizer" aria-label="Оптимізація">
+    <section className="optimizer" aria-label={t("Оптимізація")}>
       <p className="note">
-        Оптимізатор по черзі змінює кожну величину на крок в обидва боки й лишає те, що покращує бал; коли не допомагає жоден крок, кроки
-        зменшуються вдвічі. Елемент — це дріт разом із дротами, що продовжують його в одну лінію; кінці інших дротів, приєднані до нього,
-        рухаються з ним.
+        {t("Оптимізатор по черзі змінює кожну величину на крок в обидва боки й лишає те, що покращує бал; коли не допомагає жоден крок, кроки зменшуються вдвічі. Елемент — це дріт разом із дротами, що продовжують його в одну лінію; кінці інших дротів, приєднані до нього, рухаються з ним.")}
       </p>
       <div className="loads">
         {settings.map((setting, index) => {
@@ -200,7 +200,7 @@ export function OptimizerPanel({ model, onBetter, onRestore, onRunStart }: Props
               <span className="index">{index + 1}</span>
               <label className="field">
                 <span>
-                  <Hint topic="optimizerKind">Що змінювати</Hint>
+                  <Hint topic="optimizerKind">{t("Що змінювати")}</Hint>
                 </span>
                 <select
                   value={kindOf(setting)}
@@ -213,13 +213,13 @@ export function OptimizerPanel({ model, onBetter, onRestore, onRunStart }: Props
                 >
                   {KINDS.map((kind) => (
                     <option key={kind.key} value={kind.key}>
-                      {kind.label}
+                      {t(kind.label)}
                     </option>
                   ))}
                 </select>
               </label>
               <NumberField
-                label={setting.kind === "load" ? "Навантаження №" : setting.kind === "phase" ? "Джерело №" : "Дріт №"}
+                label={setting.kind === "load" ? t("Навантаження №") : setting.kind === "phase" ? t("Джерело №") : t("Дріт №")}
                 help="optimizerTarget"
                 value={targetOf(setting) + 1}
                 onChange={(number) => {
@@ -229,16 +229,16 @@ export function OptimizerPanel({ model, onBetter, onRestore, onRunStart }: Props
                   replace(index, exists(model, made) ? around(model, made) : { ...setting, ...made });
                 }}
               />
-              <NumberField label="Від" help="optimizerLimits" value={setting.min} onChange={(min) => replace(index, { ...setting, min })} />
-              <NumberField label="До" help="optimizerLimits" value={setting.max} onChange={(max) => replace(index, { ...setting, max })} />
-              <NumberField label="Крок" help="optimizerStep" value={setting.step} onChange={(step) => replace(index, { ...setting, step })} />
+              <NumberField label={t("Від")} help="optimizerLimits" value={setting.min} onChange={(min) => replace(index, { ...setting, min })} />
+              <NumberField label={t("До")} help="optimizerLimits" value={setting.max} onChange={(max) => replace(index, { ...setting, max })} />
+              <NumberField label={t("Крок")} help="optimizerStep" value={setting.step} onChange={(step) => replace(index, { ...setting, step })} />
               <span className="resonance" aria-label={describe(setting)}>
-                зараз {Number.isFinite(value) ? round(value) : "—"}
+                {t("зараз {value}", { value: Number.isFinite(value) ? round(value) : "—" })}
               </span>
               <button
                 type="button"
                 className="quiet remove"
-                aria-label={`Вилучити змінну ${index + 1}`}
+                aria-label={t("Вилучити змінну {n}", { n: index + 1 })}
                 disabled={running}
                 onClick={() => setSettings(settings.filter((_, i) => i !== index))}
               >
@@ -249,29 +249,29 @@ export function OptimizerPanel({ model, onBetter, onRestore, onRunStart }: Props
         })}
         <Hint topic="optimizerAdd">
           <button type="button" onClick={add} disabled={running || model.wires.length === 0}>
-            Додати змінну
+            {t("Додати змінну")}
           </button>
         </Hint>
       </div>
 
       <fieldset className="goals">
         <legend>
-          <Hint topic="goals">Цілі та їхні ваги</Hint>
+          <Hint topic="goals">{t("Цілі та їхні ваги")}</Hint>
         </legend>
         <div className="choices">
           {GOALS.map(([key, label, help]) => (
-            <NumberField key={key} label={label} help={help} value={goals[key]} onChange={(weight) => setGoals({ ...goals, [key]: Math.max(0, weight) })} />
+            <NumberField key={key} label={t(label)} help={help} value={goals[key]} onChange={(weight) => setGoals({ ...goals, [key]: Math.max(0, weight) })} />
           ))}
           {goals.reactance > 0 && (
             <NumberField
-              label="Цільова X, Ом"
+              label={t("Цільова X, Ом")}
               help="goalReactanceTarget"
               value={goals.reactanceTarget}
               onChange={(reactanceTarget) => setGoals({ ...goals, reactanceTarget })}
             />
           )}
           {goals.elevation > 0 && (
-            <NumberField label="Цільовий кут, °" help="goalTarget" value={goals.target} onChange={(target) => setGoals({ ...goals, target })} />
+            <NumberField label={t("Цільовий кут, °")} help="goalTarget" value={goals.target} onChange={(target) => setGoals({ ...goals, target })} />
           )}
         </div>
       </fieldset>
@@ -286,18 +286,18 @@ export function OptimizerPanel({ model, onBetter, onRestore, onRunStart }: Props
               stopEngine();
             }}
           >
-            Зупинити
+            {t("Зупинити")}
           </button>
         ) : (
           <Hint topic="optimizerRun">
             <button type="button" className="primary" onClick={run} disabled={settings.length === 0}>
-              Оптимізувати
+              {t("Оптимізувати")}
             </button>
           </Hint>
         )}
         {!running && start && (
           <button type="button" onClick={() => onRestore(start)}>
-            Повернути, як було
+            {t("Повернути, як було")}
           </button>
         )}
       </div>
@@ -310,13 +310,16 @@ export function OptimizerPanel({ model, onBetter, onRestore, onRunStart }: Props
       )}
       {status && (
         <p className="note" aria-live="polite">
-          Розрахунків: {status.evaluations}.
-          {status.best !== null && status.first !== null && ` Бал: ${fixed(status.best, 2)} (на початку ${fixed(status.first, 2)}).`}
+          {t("Розрахунків: {count}.", { count: status.evaluations })}
+          {status.best !== null && status.first !== null && t(" Бал: {best} (на початку {first}).", { best: fixed(status.best, 2), first: fixed(status.first, 2) })}
           {status.summary &&
-            ` Найкраще: ${fixed(status.summary.gain, 2)} дБі, Ф/Т ${status.summary.frontToBack === null ? "—" : `${fixed(status.summary.frontToBack, 1)} дБ`}, КСХ ${
-              Number.isFinite(status.summary.swr) ? fixed(status.summary.swr, 2) : "∞"
-            }, ${fixed(status.summary.impedance[0], 1)} ${status.summary.impedance[1] < 0 ? "−" : "+"} j${Math.abs(status.summary.impedance[1]).toFixed(1)} Ом.`}
-          {status.reason && ` ${status.reason}`}
+            t(" Найкраще: {gain} дБі, Ф/Т {ratio}, КСХ {swr}, {impedance}.", {
+              gain: fixed(status.summary.gain, 2),
+              ratio: status.summary.frontToBack === null ? "—" : t("{ratio} дБ", { ratio: fixed(status.summary.frontToBack, 1) }),
+              swr: Number.isFinite(status.summary.swr) ? fixed(status.summary.swr, 2) : "∞",
+              impedance: impedance(status.summary.impedance),
+            })}
+          {status.reason && ` ${t(status.reason, { limit: LIMIT })}`}
         </p>
       )}
     </section>

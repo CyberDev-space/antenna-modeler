@@ -5,6 +5,7 @@ import type { Model } from "../model";
 import { Card } from "./Card";
 import { Hint } from "./Help";
 import { LineChart, rangeOf } from "./LineChart";
+import { t } from "../i18n";
 
 interface Props {
   lines: CurrentLine[];
@@ -22,7 +23,8 @@ const signed = (value: number, digits: number): string => value.toFixed(digits).
 const point = (at: number[]): string => at.map((value) => Number(value.toFixed(3))).join("; ");
 
 /** The name of an element by its wires. */
-const nameOf = (line: CurrentLine): string => (line.wires.length === 1 ? `Дріт ${line.wires[0] + 1}` : `Дроти ${span(line.wires)}`);
+const nameOf = (line: CurrentLine): string =>
+  line.wires.length === 1 ? t("Дріт {wire}", { wire: line.wires[0] + 1 }) : t("Дроти {wires}", { wires: span(line.wires) });
 
 /** The currents along one element at a time: their magnitude and their phase from one end to the other. */
 export function CurrentsPanel({ lines, model, stale }: Props) {
@@ -31,7 +33,7 @@ export function CurrentsPanel({ lines, model, stale }: Props) {
   const [chosen, setChosen] = useState<number | null>(null);
   const index = chosen !== null && chosen < lines.length ? chosen : first;
   const line = lines[index];
-  if (!line) return <p className="note">У моделі немає струмів, щоб їх показати.</p>;
+  if (!line) return <p className="note">{t("У моделі немає струмів, щоб їх показати.")}</p>;
 
   const distances = line.samples.map((sample) => sample.distance);
   const magnitudes = line.samples.map((sample) => magnitude(sample.current));
@@ -51,51 +53,60 @@ export function CurrentsPanel({ lines, model, stale }: Props) {
       <div className="settings sweep-controls">
         <label className="field">
           <span>
-            <Hint topic="currentLine">Елемент</Hint>
+            <Hint topic="currentLine">{t("Елемент")}</Hint>
           </span>
           <select value={index} onChange={(event) => setChosen(Number(event.target.value))}>
             {lines.map((one, k) => (
               <option key={one.wires.join(" ")} value={k}>
-                {nameOf(one)}, {metres(one.length)} м{one.equivalent ? " (поправка Лісона)" : ""}
+                {t("{name}, {length} м", { name: nameOf(one), length: metres(one.length) })}
+                {one.equivalent ? t(" (поправка Лісона)") : ""}
               </option>
             ))}
           </select>
         </label>
       </div>
       <div className={stale ? "sweep-result stale" : "sweep-result"}>
-        {stale && <p className="note">Модель змінено: ці струми належать попередній.</p>}
+        {stale && <p className="note">{t("Модель змінено: ці струми належать попередній.")}</p>}
         <p className="band">
-          Найбільший струм {top.toFixed(3)} А на відстані {metres(peak.distance)} м від кінця; у середині елемента {magnitude(centre.current).toFixed(3)} А,
-          фаза {signed(phase(centre.current), 0)}°. Найбільший в усій антені — {allTop.toFixed(3)} А. Струми діючі, при {CURRENT_POWER} Вт.
+          {t("Найбільший струм {top} А на відстані {at} м від кінця; у середині елемента {centre} А, фаза {phase}°. Найбільший в усій антені — {all} А. Струми діючі, при {power} Вт.", {
+            top: top.toFixed(3),
+            at: metres(peak.distance),
+            centre: magnitude(centre.current).toFixed(3),
+            phase: signed(phase(centre.current), 0),
+            all: allTop.toFixed(3),
+            power: CURRENT_POWER,
+          })}
         </p>
         <div className="charts">
-          <Card title={<Hint topic="currentMagnitude">Амплітуда струму, А</Hint>}>
+          <Card title={<Hint topic="currentMagnitude">{t("Амплітуда струму, А")}</Hint>}>
             <LineChart
-              title="Амплітуда струму, А"
+              title={t("Амплітуда струму, А")}
               x={distances}
-              xUnit="м"
+              xUnit={t("м")}
               xFormat={metres}
               series={[{ name: "|I|", values: magnitudes, tone: "a" }]}
               range={[0, top > 0 ? top * 1.1 : 1]}
               format={(value) => value.toFixed(3)}
             />
           </Card>
-          <Card title={<Hint topic="currentPhase">Фаза струму, °</Hint>}>
+          <Card title={<Hint topic="currentPhase">{t("Фаза струму, °")}</Hint>}>
             <LineChart
-              title="Фаза струму, °"
+              title={t("Фаза струму, °")}
               x={live.map((sample) => sample.distance)}
-              xUnit="м"
+              xUnit={t("м")}
               xFormat={metres}
-              series={[{ name: "фаза", values: phases, tone: "b" }]}
+              series={[{ name: t("фаза"), values: phases, tone: "b" }]}
               range={phaseRange}
               format={(value) => signed(value, 1)}
             />
           </Card>
         </div>
         <p className="note">
-          Відстань відраховано від кінця ({point(line.from)}) м до кінця ({point(line.to)}) м; фаза — відносно напруги джерела, додатний струм тече від
-          першого кінця до другого.
-          {line.equivalent && " Елемент рахувався як рівний циліндр Лісона: його струм розтягнуто на довжину труб."}
+          {t("Відстань відраховано від кінця ({from}) м до кінця ({to}) м; фаза — відносно напруги джерела, додатний струм тече від першого кінця до другого.", {
+            from: point(line.from),
+            to: point(line.to),
+          })}
+          {line.equivalent && t(" Елемент рахувався як рівний циліндр Лісона: його струм розтягнуто на довжину труб.")}
         </p>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { loadImpedance } from "./loads";
 import { pulseSegment, type Load, type Model, type Pulse, type Wire } from "./model";
 import { joinEnds, layout, segmentCount, wavelength, wireLength } from "./segmentation";
 import { taperedElements, type TaperedElement } from "./taper";
+import { decimal, t } from "./i18n";
 
 /** Steps of the pattern in degrees. Over a ground only the upper half is computed, on a finer grid. */
 export const PHI_STEP = 5;
@@ -88,7 +89,7 @@ function radiusSteps(wires: Model["wires"]): [number, number][] {
 /** Leeson's method is made for elements near resonance: between these lengths in wavelengths. */
 const LEESON_RANGE: [number, number] = [0.4, 0.6];
 
-const SHAPES_ONLY = "Поправка Лісона діє лише на прямі елементи, симетричні щодо центру.";
+const shapesOnly = (): string => t("Поправка Лісона діє лише на прямі елементи, симетричні щодо центру.");
 
 const endsOf = (wire: Wire): [Point, Point] => [
   [wire.x1, wire.y1, wire.z1],
@@ -126,21 +127,21 @@ function pulsePoint(wires: Wire[], at: Pulse): Point | null {
  */
 function obstacle({ sources, loads }: Model, wires: Wire[], element: TaperedElement, lambda: number): string | null {
   const members = new Set(element.wires);
-  if (loads.some((load) => members.has(load.at.wire))) return "на ньому стоїть навантаження";
+  if (loads.some((load) => members.has(load.at.wire))) return t("на ньому стоїть навантаження");
   const [a, b] = element.ends;
   const length = distance(a, b);
   const fed = sources.filter((source) => members.has(source.at.wire));
-  if (fed.length > 1) return "на ньому кілька джерел";
+  if (fed.length > 1) return t("на ньому кілька джерел");
   if (fed.length === 1) {
     const point = pulsePoint(wires, fed[0].at);
-    if (!point || distance(point, middle(a, b)) > 1e-6 * length) return "джерело стоїть не в центрі елемента";
+    if (!point || distance(point, middle(a, b)) > 1e-6 * length) return t("джерело стоїть не в центрі елемента");
   }
   if (wires.some((wire, index) => !members.has(index) && endsOf(wire).some((end) => onPiece(end, a, b, 1e-6 * length)))) {
-    return "до нього приєднано інші дроти";
+    return t("до нього приєднано інші дроти");
   }
   const electrical = length / lambda;
   if (electrical < LEESON_RANGE[0] || electrical > LEESON_RANGE[1]) {
-    return `його довжина ${electrical.toFixed(2).replace(".", ",")} λ: поправка розрахована на елементи довжиною 0,4–0,6 λ`;
+    return t("його довжина {length} λ: поправка розрахована на елементи довжиною 0,4–0,6 λ", { length: decimal(electrical.toFixed(2)) });
   }
   return null;
 }
@@ -173,22 +174,29 @@ function substitute(model: Model, wires: Wire[], lambda: number): Substitution {
   const steps = radiusSteps(wires);
   const candidates = taperedElements(wires);
   const words = (list: [number, number][]): string => {
-    const more = list.length > 1 ? ` і ще ${list.length - 1}` : "";
-    return `Труби різного діаметра стикуються на одній осі (дроти ${list[0][0]} і ${list[0][1]}${more}). NEC-2 на таких стиках неточний: резонанс елемента може зсунутися на відсотки.`;
+    const more = list.length > 1 ? t(" і ще {count}", { count: list.length - 1 }) : "";
+    return t("Труби різного діаметра стикуються на одній осі (дроти {a} і {b}{more}). NEC-2 на таких стиках неточний: резонанс елемента може зсунутися на відсотки.", {
+      a: list[0][0],
+      b: list[0][1],
+      more,
+    });
   };
   const chosen: { element: TaperedElement; wire: Wire }[] = [];
   if (!model.taperCorrection) {
-    if (steps.length > 0) warnings.push(`${words(steps)} ${candidates.length > 0 ? "Поправку Лісона, яка це виправляє, вимкнено." : SHAPES_ONLY}`);
+    if (steps.length > 0) warnings.push(`${words(steps)} ${candidates.length > 0 ? t("Поправку Лісона, яка це виправляє, вимкнено.") : shapesOnly()}`);
   } else {
     const inside = new Set(candidates.flatMap((element) => element.wires));
     const outside = steps.filter(([a, b]) => !(inside.has(a - 1) && inside.has(b - 1)));
-    if (outside.length > 0) warnings.push(`${words(outside)} ${SHAPES_ONLY}`);
+    if (outside.length > 0) warnings.push(`${words(outside)} ${shapesOnly()}`);
     for (const element of candidates) {
       const reason = obstacle(model, wires, element, lambda);
       const cylinder = reason ? null : equivalentCylinder(element.half);
       if (!cylinder) {
         warnings.push(
-          `Елемент з дротів ${span(element.wires, "–")}: поправку Лісона не застосовано, бо ${reason ?? "метод не дає для нього тонкого циліндра"}. NEC-2 на стиках труб неточний: резонанс елемента може зсунутися на відсотки.`,
+          t("Елемент з дротів {wires}: поправку Лісона не застосовано, бо {reason}. NEC-2 на стиках труб неточний: резонанс елемента може зсунутися на відсотки.", {
+            wires: span(element.wires, "–"),
+            reason: reason ?? t("метод не дає для нього тонкого циліндра"),
+          }),
         );
         continue;
       }
@@ -286,38 +294,41 @@ function structure(model: Model): Structure {
   ): Structure => ({ cards, segments, loads: held, marks, feeds, errors, warnings, equivalents });
   // With one source the messages do not number it.
   const several = sources.length > 1;
-  const sourceName = (index: number): string => (several ? `джерело ${index + 1}` : "джерело");
-  const sourceTitle = (index: number): string => (several ? `Джерело ${index + 1}` : "Джерело");
+  const sourceName = (index: number): string => (several ? t("джерело {n}", { n: index + 1 }) : t("джерело"));
+  const sourceTitle = (index: number): string => (several ? t("Джерело {n}", { n: index + 1 }) : t("Джерело"));
 
-  if (!(frequency > 0)) errors.push("Частота має бути більшою за нуль.");
-  if (placed.length === 0) errors.push("У моделі немає жодного дроту.");
-  if (sources.length === 0) errors.push("У моделі немає джерела.");
+  if (!(frequency > 0)) errors.push(t("Частота має бути більшою за нуль."));
+  if (placed.length === 0) errors.push(t("У моделі немає жодного дроту."));
+  if (sources.length === 0) errors.push(t("У моделі немає джерела."));
   sources.forEach(({ at }, index) => {
-    if (at.wire >= placed.length) errors.push(`${sourceTitle(index)} стоїть на дроті ${at.wire + 1}, якого немає.`);
+    if (at.wire >= placed.length) errors.push(t("{source} стоїть на дроті {wire}, якого немає.", { source: sourceTitle(index), wire: at.wire + 1 }));
   });
   if (sources.length > 0 && sources.every((source) => source.voltage === 0)) {
-    errors.push(several ? "Напруга всіх джерел дорівнює нулю: антену нічим не збуджено." : "Напруга джерела дорівнює нулю: антену нічим не збуджено.");
+    errors.push(several ? t("Напруга всіх джерел дорівнює нулю: антену нічим не збуджено.") : t("Напруга джерела дорівнює нулю: антену нічим не збуджено."));
   }
   placed.forEach((wire, index) => {
-    if (!(wireLength(wire) > 0)) errors.push(`Дріт ${index + 1} не має довжини.`);
-    if (!(wire.radius > 0)) errors.push(`Радіус дроту ${index + 1} має бути більшим за нуль.`);
-    if (overGround && (wire.z1 < -ON_GROUND || wire.z2 < -ON_GROUND)) errors.push(`Дріт ${index + 1} заходить під землю.`);
+    if (!(wireLength(wire) > 0)) errors.push(t("Дріт {wire} не має довжини.", { wire: index + 1 }));
+    if (!(wire.radius > 0)) errors.push(t("Радіус дроту {wire} має бути більшим за нуль.", { wire: index + 1 }));
+    if (overGround && (wire.z1 < -ON_GROUND || wire.z2 < -ON_GROUND)) errors.push(t("Дріт {wire} заходить під землю.", { wire: index + 1 }));
   });
   const lying = placed.flatMap((wire, index) => (touches(wire.z1) && touches(wire.z2) ? [index + 1] : []));
   if (lying.length > 0) {
-    const which = lying.length === 1 ? `Дріт ${lying[0]} лежить` : `Дроти ${lying.join(", ")} лежать`;
-    errors.push(`${which} на землі. Підніміть антену: поле «Додати висоту».`);
+    errors.push(
+      lying.length === 1
+        ? t("Дріт {wires} лежить на землі. Підніміть антену: поле «Додати висоту».", { wires: lying[0] })
+        : t("Дроти {wires} лежать на землі. Підніміть антену: поле «Додати висоту».", { wires: lying.join(", ") }),
+    );
   }
   if (ground.kind === "real" && !(ground.permittivity > 0 || ground.conductivity > 0)) {
-    errors.push("Реальній землі потрібна діелектрична проникність або провідність.");
+    errors.push(t("Реальній землі потрібна діелектрична проникність або провідність."));
   }
   loads.forEach((load, index) => {
-    if (load.at.wire >= placed.length) errors.push(`Навантаження ${index + 1} стоїть на дроті ${load.at.wire + 1}, якого немає.`);
+    if (load.at.wire >= placed.length) errors.push(t("Навантаження {load} стоїть на дроті {wire}, якого немає.", { load: index + 1, wire: load.at.wire + 1 }));
     if (load.kind === "lc" && (load.inductance < 0 || load.capacitance < 0 || load.q < 0)) {
-      errors.push(`Навантаження ${index + 1}: L, C і Q не можуть бути від'ємними.`);
+      errors.push(t("Навантаження {load}: L, C і Q не можуть бути від'ємними.", { load: index + 1 }));
     }
   });
-  if (model.wireConductivity < 0) errors.push("Провідність дротів не може бути від'ємною.");
+  if (model.wireConductivity < 0) errors.push(t("Провідність дротів не може бути від'ємною."));
   if (errors.length > 0) return result();
   const lambda = wavelength(frequency);
   const joined = joinEnds(placed);
@@ -339,29 +350,29 @@ function structure(model: Model): Structure {
   // The sources and the loads, with the words that the messages use for them.
   const pulses = [
     ...sources.map(({ at }, index) => ({ at: remap(at), name: sourceName(index), title: sourceTitle(index) })),
-    ...loads.map((load, index) => ({ at: remap(load.at), name: `навантаження ${index + 1}`, title: `Навантаження ${index + 1}` })),
+    ...loads.map((load, index) => ({ at: remap(load.at), name: t("навантаження {n}", { n: index + 1 }), title: t("Навантаження {n}", { n: index + 1 }) })),
   ];
   // The regular segments of every wire. The segments that the engine gets can be more: a load has short ones around it.
   const counts = wires.map((wire, index) =>
     segmentCount(wire, frequency, pulses.some(({ at }) => at.wire === index && at.place === "c")),
   );
   if (counts.reduce((sum, count) => sum + count, 0) > MAX_SEGMENTS) {
-    errors.push(`Модель має ${counts.reduce((sum, count) => sum + count, 0)} сегм., а програма рахує щонайбільше ${MAX_SEGMENTS}.`);
+    errors.push(t("Модель має {count} сегм., а програма рахує щонайбільше {most}.", { count: counts.reduce((sum, count) => sum + count, 0), most: MAX_SEGMENTS }));
     return result(ofModel(counts), [], [], null, [], equivalents(counts));
   }
   wires.forEach((wire, index) => {
     const length = wireLength(wire) / counts[index];
     if (length > lambda / 10) {
-      warnings.push(`Сегменти дроту ${tags[index]} довші за десяту частину хвилі: результат буде неточним.`);
+      warnings.push(t("Сегменти дроту {wire} довші за десяту частину хвилі: результат буде неточним.", { wire: tags[index] }));
     }
     if (length < 8 * wire.radius) {
-      warnings.push(`Сегменти дроту ${tags[index]} коротші за вісім радіусів: модель тонкого дроту тут неточна.`);
+      warnings.push(t("Сегменти дроту {wire} коротші за вісім радіусів: модель тонкого дроту тут неточна.", { wire: tags[index] }));
     }
   });
   if (ground.kind === "real") {
     wires.forEach((wire, index) => {
       if (touches(wire.z1) || touches(wire.z2)) {
-        warnings.push(`Дріт ${tags[index]} торкається реальної землі: таке заземлення NEC-2 рахує неточно.`);
+        warnings.push(t("Дріт {wire} торкається реальної землі: таке заземлення NEC-2 рахує неточно.", { wire: tags[index] }));
       }
     });
   }
@@ -369,9 +380,9 @@ function structure(model: Model): Structure {
     const count = counts[at.wire];
     const segment = pulseSegment(at, count);
     if (segment < 1 || segment > count) {
-      errors.push(`${title} зсунуте за межі дроту ${tags[at.wire]}: він має ${count} сегм.`);
+      errors.push(t("{pulse} зсунуте за межі дроту {wire}: він має {count} сегм.", { pulse: title, wire: tags[at.wire], count }));
     } else if (at.place === "c" && count % 2 === 0) {
-      warnings.push(`Дріт ${tags[at.wire]} має парну кількість сегментів: ${name} стоїть не точно в центрі.`);
+      warnings.push(t("Дріт {wire} має парну кількість сегментів: {pulse} стоїть не точно в центрі.", { wire: tags[at.wire], pulse: name }));
     }
   }
   if (errors.length > 0) return result(ofModel(counts), [], [], null, [], equivalents(counts));
@@ -387,7 +398,7 @@ function structure(model: Model): Structure {
   const segments = pieces.map((ofWire) => ofWire.length);
   const total = segments.reduce((sum, count) => sum + count, 0);
   if (total > MAX_SEGMENTS) {
-    errors.push(`Модель має ${total} сегм., а програма рахує щонайбільше ${MAX_SEGMENTS}.`);
+    errors.push(t("Модель має {count} сегм., а програма рахує щонайбільше {most}.", { count: total, most: MAX_SEGMENTS }));
     return result(ofModel(segments), [], [], null, [], equivalents(segments));
   }
   // The engine keeps one source in a segment: a second one there would replace the first without a word.
@@ -397,7 +408,7 @@ function structure(model: Model): Structure {
     for (const seat of ofSource) {
       const key = `${seat.wire} ${seat.segment}`;
       const other = taken.get(key);
-      if (other !== undefined && other !== index) clashes.add(`Джерела ${other + 1} і ${index + 1} стоять в одному сегменті дроту ${tags[seat.wire]}.`);
+      if (other !== undefined && other !== index) clashes.add(t("Джерела {a} і {b} стоять в одному сегменті дроту {wire}.", { a: other + 1, b: index + 1, wire: tags[seat.wire] }));
       taken.set(key, index);
     }
   });
@@ -407,7 +418,7 @@ function structure(model: Model): Structure {
   }
   const seated = loads.flatMap((load, index) => {
     if (load.kind === "lc" && load.inductance === 0 && load.capacitance === 0) {
-      warnings.push(`Навантаження ${index + 1} не має ні котушки, ні конденсатора: воно нічого не змінює.`);
+      warnings.push(t("Навантаження {load} не має ні котушки, ні конденсатора: воно нічого не змінює.", { load: index + 1 }));
       return [];
     }
     const ofLoad = seats[sources.length + index];
@@ -572,10 +583,10 @@ export interface Direction {
 export function buildSweepDeck(model: Model, toward?: Direction): Deck {
   const { from, to, points } = model.sweep;
   const base = structure(model);
-  if (!(from > 0)) base.errors.push("Початок розгортки має бути більшим за нуль.");
-  if (!(to > from)) base.errors.push("Кінець розгортки має бути більшим за початок.");
+  if (!(from > 0)) base.errors.push(t("Початок розгортки має бути більшим за нуль."));
+  if (!(to > from)) base.errors.push(t("Кінець розгортки має бути більшим за початок."));
   if (!Number.isInteger(points) || points < 2 || points > MAX_SWEEP_POINTS) {
-    base.errors.push(`Розгортка має мати від 2 до ${MAX_SWEEP_POINTS} точок.`);
+    base.errors.push(t("Розгортка має мати від 2 до {most} точок.", { most: MAX_SWEEP_POINTS }));
   }
   if (base.errors.length > 0) return finish(base, []);
   const step = (to - from) / (points - 1);

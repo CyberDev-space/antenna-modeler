@@ -1,6 +1,7 @@
 import { element, placedWires, type Point } from "./geometry";
 import type { Model, Wire } from "./model";
 import { taperedElements } from "./taper";
+import { t } from "./i18n";
 
 /** A straight element of a model, as a build sheet lists it. */
 export interface ElementRow {
@@ -119,7 +120,7 @@ export function millimetres(metres: number): string {
 /** The direction of an element in words: along an axis, or its vector. */
 export function directionText(direction: Point): string {
   const axis = direction.findIndex((value) => Math.abs(Math.abs(value) - 1) < 1e-6);
-  if (axis >= 0) return `уздовж ${AXIS_NAMES[axis]}`;
+  if (axis >= 0) return t("уздовж {axis}", { axis: AXIS_NAMES[axis] });
   return `(${direction.map((value) => value.toFixed(3).replace("-", "−")).join("; ")})`;
 }
 

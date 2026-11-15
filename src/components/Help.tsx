@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { TOPICS, type Topic, type TopicKey } from "../help";
+import { TOPICS_EN } from "../help.en";
+import { language, t } from "../i18n";
 
 interface Help {
   /** Whether the help pops up at all: those who know the program can turn it off. */
@@ -131,7 +133,7 @@ function Popup({ topic, anchor, onGone }: { topic: TopicKey; anchor: Element; on
     observer.observe(element);
     return () => observer.disconnect();
   }, [anchor, topic, onGone]);
-  const { title, what, table, how, howTitle, affects, defaults }: Topic = TOPICS[topic];
+  const { title, what, table, how, howTitle, affects, defaults }: Topic = (language() === "en" ? TOPICS_EN : TOPICS)[topic];
   return (
     <div
       ref={box}
@@ -158,7 +160,7 @@ function Popup({ topic, anchor, onGone }: { topic: TopicKey; anchor: Element; on
       )}
       {how && (
         <div className="help-section">
-          <div className="help-label">{howTitle ?? "Як користуватися"}</div>
+          <div className="help-label">{howTitle ?? t("Як користуватися")}</div>
           <ul>
             {how.map((line) => (
               <li key={line}>{rich(line)}</li>
@@ -168,13 +170,13 @@ function Popup({ topic, anchor, onGone }: { topic: TopicKey; anchor: Element; on
       )}
       {affects && (
         <div className="help-section">
-          <div className="help-label">Впливає на</div>
+          <div className="help-label">{t("Впливає на")}</div>
           <p>{rich(affects)}</p>
         </div>
       )}
       {defaults && (
         <div className="help-default">
-          <span className="help-label">Типово</span>
+          <span className="help-label">{t("Типово")}</span>
           <span>{rich(defaults)}</span>
         </div>
       )}
@@ -220,7 +222,7 @@ export function HelpSwitch() {
         <span aria-hidden="true" className="help-mark">
           ?
         </span>
-        Підказки
+        {t("Підказки")}
       </button>
     </Hint>
   );

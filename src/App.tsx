@@ -24,6 +24,7 @@ import { exportMaa } from "./maa";
 import { defaultModel, formatPulse, resultKey, sweepKey, type Model } from "./model";
 import type { PatternGrid } from "./pattern";
 import { joinEnds } from "./segmentation";
+import { type Language, N, setLanguage, startingLanguage, t } from "./i18n";
 
 // The view in space brings a large library: it is loaded after the page.
 const View3D = lazy(() => import("./components/View3D").then((module) => ({ default: module.View3D })));
@@ -33,12 +34,15 @@ const STORAGE_KEY = "antenna-modeler.model";
 function storedModel(): Model {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return restoreModel(JSON.parse(stored)) ?? defaultModel;
+    if (stored) return restoreModel(JSON.parse(stored)) ?? exampleModel();
   } catch {
     // Storage that is blocked or holds something else: start from the example.
   }
-  return defaultModel;
+  return exampleModel();
 }
+
+/** The example, named in the language of the page. */
+const exampleModel = (): Model => ({ ...defaultModel, name: t(defaultModel.name) });
 
 /** What the page says about the file that was opened or saved last. */
 interface FileNote {
@@ -50,12 +54,12 @@ interface FileNote {
 
 /** The tabs of the workspace. */
 const TABS = [
-  ["view", "Вигляд і діаграми", "tabView"],
-  ["currents", "Струми", "tabCurrents"],
-  ["sweep", "Розгортка", "tabSweep"],
-  ["matching", "Узгодження", "tabMatching"],
-  ["optimizer", "Оптимізація", "tabOptimizer"],
-  ["report", "Звіт NEC-2", "tabReport"],
+  ["view", N("Вигляд і діаграми"), "tabView"],
+  ["currents", N("Струми"), "tabCurrents"],
+  ["sweep", N("Розгортка"), "tabSweep"],
+  ["matching", N("Узгодження"), "tabMatching"],
+  ["optimizer", N("Оптимізація"), "tabOptimizer"],
+  ["report", N("Звіт NEC-2"), "tabReport"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -91,6 +95,15 @@ interface Solved {
 }
 
 export function App() {
+  const [lang, setLang] = useState<Language>(() => {
+    const start = startingLanguage();
+    setLanguage(start);
+    return start;
+  });
+  const changeLanguage = (next: Language) => {
+    setLanguage(next);
+    setLang(next);
+  };
   const [model, setModel] = useState<Model>(storedModel);
   const [solved, setSolved] = useState<Solved | null>(null);
   const [running, setRunning] = useState(false);
@@ -162,13 +175,14 @@ export function App() {
     try {
       const opened = openModel(await readText(file), model);
       edit(opened.model, true);
-      setFileNote({ title: `Відкрито ${file.name}`, notes: opened.notes });
+      setFileNote({ title: t("Відкрито {file}", { file: file.name }), notes: opened.notes });
     } catch (error) {
       setFileNote({ title: `${file.name}: ${error instanceof Error ? error.message : String(error)}`, notes: [], failed: true });
     }
   }
 
-  const deck = useMemo(() => buildDeck(model), [model]);
+  // The messages of the deck are in the language of the page.
+  const deck = useMemo(() => buildDeck(model), [model, lang]);
   const modelText = JSON.stringify(model);
   const key = resultKey(model);
   useEffect(() => {
@@ -192,7 +206,7 @@ export function App() {
     } else {
       download(name, exportDeck(model).text, "text/plain");
     }
-    setFileNote({ title: `Збережено ${name}`, notes });
+    setFileNote({ title: t("Збережено {file}", { file: name }), notes });
   }
 
   /** Shows the results of a model: of the button, or of the optimizer. */
@@ -232,7 +246,7 @@ export function App() {
     try {
       const output = await solve(deck.text);
       if (output.error) {
-        setFailure({ model: key, lines: ["Ядро зупинило розрахунок:", output.error] });
+        setFailure({ model: key, lines: [t("Ядро зупинило розрахунок:"), output.error] });
         setSolved(null);
         return;
       }
@@ -240,7 +254,7 @@ export function App() {
     } catch (error) {
       // A stopped computation leaves the results as they were.
       if (error instanceof Stopped) return;
-      setFailure({ model: key, lines: ["Розрахунок не вдався:", String(error)] });
+      setFailure({ model: key, lines: [t("Розрахунок не вдався:"), String(error)] });
       setSolved(null);
     } finally {
       setRunning(false);
@@ -280,16 +294,16 @@ export function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <h1>Моделювання антен</h1>
-          <span>NEC-2 з реальною землею</span>
+          <h1>{t("Моделювання антен")}</h1>
+          <span>{t("NEC-2 з реальною землею")}</span>
         </div>
         <label className="name-field">
-          <span className="sr-only">Назва моделі</span>
+          <span className="sr-only">{t("Назва моделі")}</span>
           <Hint topic="name">
             <input
               type="text"
               className="text"
-              placeholder="Назва моделі"
+              placeholder={t("Назва моделі")}
               value={model.name}
               onChange={(event) => edit({ ...model, name: event.target.value })}
             />
@@ -298,22 +312,22 @@ export function App() {
         <div className="file-actions">
           <Hint topic="open">
             <label className="button">
-              Відкрити
+              {t("Відкрити")}
               <input type="file" accept=".maa,.json" onChange={open} />
             </label>
           </Hint>
           <Hint topic="save">
             <button type="button" onClick={() => save("json")}>
-              Зберегти
+              {t("Зберегти")}
             </button>
           </Hint>
           <Hint topic="exportMaa">
-            <button type="button" aria-label="Експорт у файл MMANA" onClick={() => save("maa")}>
+            <button type="button" aria-label={t("Експорт у файл MMANA")} onClick={() => save("maa")}>
               .maa
             </button>
           </Hint>
           <Hint topic="exportNec">
-            <button type="button" aria-label="Експорт у картки NEC-2" onClick={() => save("nec")} disabled={deck.errors.length > 0}>
+            <button type="button" aria-label={t("Експорт у картки NEC-2")} onClick={() => save("nec")} disabled={deck.errors.length > 0}>
               .nec
             </button>
           </Hint>
@@ -322,11 +336,11 @@ export function App() {
               type="button"
               className="quiet"
               onClick={() => {
-                edit(defaultModel, true);
+                edit(exampleModel(), true);
                 setFileNote(null);
               }}
             >
-              Приклад
+              {t("Приклад")}
             </button>
           </Hint>
         </div>
@@ -335,7 +349,7 @@ export function App() {
             <button
               type="button"
               className="quiet"
-              aria-label="Скасувати зміну"
+              aria-label={t("Скасувати зміну")}
               aria-keyshortcuts="Control+Z"
               onClick={undo}
               disabled={past.current.length === 0}
@@ -347,7 +361,7 @@ export function App() {
             <button
               type="button"
               className="quiet"
-              aria-label="Повернути зміну"
+              aria-label={t("Повернути зміну")}
               aria-keyshortcuts="Control+Shift+Z"
               onClick={redo}
               disabled={future.current.length === 0}
@@ -356,6 +370,15 @@ export function App() {
             </button>
           </Hint>
         </div>
+        <Hint topic="language">
+          <div className="language-switch" role="group" aria-label={t("Мова")}>
+            {(["uk", "en"] as const).map((one) => (
+              <button key={one} type="button" className={lang === one ? "quiet on" : "quiet"} aria-pressed={lang === one} onClick={() => changeLanguage(one)}>
+                {one === "uk" ? "UA" : "EN"}
+              </button>
+            ))}
+          </div>
+        </Hint>
         <HelpSwitch />
         <Hint topic="pdf">
           <button type="button" onClick={printSheet}>
@@ -365,17 +388,17 @@ export function App() {
         <Hint topic="compute">
           {running ? (
             <button type="button" className="primary compute" onClick={stopEngine}>
-              Зупинити
+              {t("Зупинити")}
             </button>
           ) : (
             <button type="button" className="primary compute" onClick={compute} disabled={!canCompute} aria-keyshortcuts="Control+Enter">
-              Розрахувати
+              {t("Розрахувати")}
             </button>
           )}
         </Hint>
       </header>
 
-      <aside className="editor" aria-label="Модель">
+      <aside className="editor" aria-label={t("Модель")}>
         {fileNote && (
           <ul className={fileNote.failed ? "messages errors" : "messages opened"}>
             <li>{fileNote.title}</li>
@@ -392,11 +415,11 @@ export function App() {
           </ul>
         )}
         <div className="section-head">
-          <h2>{editorView === "wires" ? "Дроти" : "Елементи"}</h2>
+          <h2>{editorView === "wires" ? t("Дроти") : t("Елементи")}</h2>
           <div className="view-switch">
             <Hint topic="viewWires">
               <button type="button" className={editorView === "wires" ? "quiet on" : "quiet"} aria-pressed={editorView === "wires"} onClick={() => setEditorView("wires")}>
-                Дроти
+                {t("Дроти")}
               </button>
             </Hint>
             <Hint topic="viewElements">
@@ -406,7 +429,7 @@ export function App() {
                 aria-pressed={editorView === "elements"}
                 onClick={() => setEditorView("elements")}
               >
-                Елементи
+                {t("Елементи")}
               </button>
             </Hint>
           </div>
@@ -422,16 +445,16 @@ export function App() {
         ) : (
           <ElementTable model={model} onChange={edit} />
         )}
-        <h2>Джерела</h2>
+        <h2>{t("Джерела")}</h2>
         <SourceTable sources={model.sources} onChange={(sources) => edit({ ...model, sources })} />
-        <h2>Навантаження</h2>
+        <h2>{t("Навантаження")}</h2>
         <LoadTable loads={model.loads} onChange={(loads) => edit({ ...model, loads })} />
-        <h2>Частота, земля, матеріал</h2>
+        <h2>{t("Частота, земля, матеріал")}</h2>
         <Settings model={model} onChange={edit} equivalents={deck.equivalents} />
       </aside>
 
       <main className="workspace">
-        <section className={stale ? "results-strip stale" : "results-strip"} aria-label="Результати" aria-live="polite">
+        <section className={stale ? "results-strip stale" : "results-strip"} aria-label={t("Результати")} aria-live="polite">
           {problems && (
             <ul className="messages errors">
               {problems.map((problem) => (
@@ -439,15 +462,15 @@ export function App() {
               ))}
             </ul>
           )}
-          {!solved && !problems && <p className="note">Натисніть «Розрахувати» або Ctrl+Enter.</p>}
+          {!solved && !problems && <p className="note">{t("Натисніть «Розрахувати» або Ctrl+Enter.")}</p>}
           {solved && (
             <>
-              {stale && <p className="note">Модель змінено: ці результати належать попередній.</p>}
+              {stale && <p className="note">{t("Модель змінено: ці результати належать попередній.")}</p>}
               <SummaryTiles summary={solved.summary} sources={solved.sources} reference={solved.reference} lossy={solved.lossy} />
               {solved.warnings.length > 0 && (
                 <ul className="messages warnings">
                   {solved.warnings.map((warning) => (
-                    <li key={warning}>Ядро: {warning}</li>
+                    <li key={warning}>{t("Ядро: {warning}", { warning })}</li>
                   ))}
                 </ul>
               )}
@@ -455,7 +478,7 @@ export function App() {
           )}
         </section>
 
-        <nav className="tabs" role="tablist" aria-label="Робоча область">
+        <nav className="tabs" role="tablist" aria-label={t("Робоча область")}>
           {TABS.map(([id, label, topic]) => (
             <button
               key={id}
@@ -467,15 +490,15 @@ export function App() {
               className={tab === id ? "tab active" : "tab"}
               onClick={() => setTab(id)}
             >
-              <Hint topic={topic}>{label}</Hint>
+              <Hint topic={topic}>{t(label)}</Hint>
             </button>
           ))}
         </nav>
 
         {/* Every panel stays mounted, so that a sweep, the optimizer and the camera keep their state. */}
         <div className="tab-panel view-panel" role="tabpanel" id="panel-view" aria-labelledby="tab-view" hidden={tab !== "view"}>
-          <Card title="Вигляд" className="view-card">
-            <Suspense fallback={<p className="note">Завантажую…</p>}>
+          <Card title={t("Вигляд")} className="view-card">
+            <Suspense fallback={<p className="note">{t("Завантажую…")}</p>}>
               <View3D
                 model={model}
                 marks={deck.marks}
@@ -490,7 +513,7 @@ export function App() {
             </div>
           ) : (
             <div className="patterns empty">
-              <p className="note">Діаграми спрямованості з'являться після розрахунку.</p>
+              <p className="note">{t("Діаграми спрямованості з'являться після розрахунку.")}</p>
             </div>
           )}
         </div>
@@ -499,7 +522,7 @@ export function App() {
           {solved ? (
             <CurrentsPanel lines={solved.currents} model={model} stale={stale} />
           ) : (
-            <p className="note">Струми з'являться після розрахунку.</p>
+            <p className="note">{t("Струми з'являться після розрахунку.")}</p>
           )}
         </div>
 
@@ -519,7 +542,7 @@ export function App() {
               onInputs={setMatching}
             />
           ) : (
-            <p className="note">Узгодження з'явиться після розрахунку: йому потрібен вхідний опір антени.</p>
+            <p className="note">{t("Узгодження з'явиться після розрахунку: йому потрібен вхідний опір антени.")}</p>
           )}
         </div>
 
@@ -544,11 +567,11 @@ export function App() {
         <div className="tab-panel report-panel" role="tabpanel" id="panel-report" aria-labelledby="tab-report" hidden={tab !== "report"}>
           {solved ? (
             <>
-              <p className="note">Звіт ядра NEC-2 за останнім розрахунком ({solved.milliseconds.toFixed(0)} мс).</p>
+              <p className="note">{t("Звіт ядра NEC-2 за останнім розрахунком ({ms} мс).", { ms: solved.milliseconds.toFixed(0) })}</p>
               <pre>{solved.report}</pre>
             </>
           ) : (
-            <p className="note">Звіт з'явиться після розрахунку.</p>
+            <p className="note">{t("Звіт з'явиться після розрахунку.")}</p>
           )}
         </div>
       </main>

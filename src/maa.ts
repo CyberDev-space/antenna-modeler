@@ -12,6 +12,7 @@ import {
   type Source,
   type Wire,
 } from "./model";
+import { N, t } from "./i18n";
 
 export interface Imported {
   model: Model;
@@ -32,13 +33,13 @@ const IRON = 1e7;
 
 /** The materials of a file by their code: no loss, then wire and pipe of copper, of aluminium and of iron. */
 const MATERIALS: [name: string, conductivity: number][] = [
-  ["без втрат", 0],
-  ["мідь", COPPER],
-  ["мідь", COPPER],
-  ["алюміній", ALUMINIUM],
-  ["алюміній", ALUMINIUM],
-  ["залізо", IRON],
-  ["залізо", IRON],
+  [N("без втрат"), 0],
+  [N("мідь"), COPPER],
+  [N("мідь"), COPPER],
+  [N("алюміній"), ALUMINIUM],
+  [N("алюміній"), ALUMINIUM],
+  [N("залізо"), IRON],
+  [N("залізо"), IRON],
 ];
 
 /**
@@ -57,7 +58,7 @@ function numbers(line: string | undefined, count: number, what: string, from = 0
     .slice(from, from + count)
     .map((field) => (field === "" ? NaN : Number(field)));
   if (values.length < count || values.some((value) => !Number.isFinite(value))) {
-    throw new Error(`Не вдалося прочитати ${what}: «${(line ?? "").trim()}».`);
+    throw new Error(t("Не вдалося прочитати {what}: «{line}».", { what, line: (line ?? "").trim() }));
   }
   return values;
 }
@@ -95,10 +96,10 @@ function taperRow(line: string, row: number): [number, Taper] {
     .filter((field) => field !== "")
     .map(Number);
   if (values.length < 4 || values.some((value) => !Number.isFinite(value))) {
-    throw new Error(`Не вдалося прочитати рядок ${row} таблиці труб: «${line.trim()}».`);
+    throw new Error(t("Не вдалося прочитати рядок {row} таблиці труб: «{line}».", { row, line: line.trim() }));
   }
   const [pointer, type] = values;
-  if (![0, 1, 2, 3].includes(type)) throw new Error(`Невідомий тип труб у файлі: ${type}.`);
+  if (![0, 1, 2, 3].includes(type)) throw new Error(t("Невідомий тип труб у файлі: {type}.", { type }));
   const tubes: Tube[] = [];
   let rest: number | null = null;
   for (let k = 2; k + 1 < values.length && rest === null; k += 2) {
@@ -110,7 +111,7 @@ function taperRow(line: string, row: number): [number, Taper] {
   }
   rest ??= tubes.pop()!.radius;
   if (!(rest > 0) || tubes.some((tube) => !(tube.radius > 0))) {
-    throw new Error(`Радіуси труб у рядку ${row} таблиці труб мають бути більшими за нуль.`);
+    throw new Error(t("Радіуси труб у рядку {row} таблиці труб мають бути більшими за нуль.", { row }));
   }
   return [pointer, { symmetric: type === 0 || type === 2, starred: type >= 2, tubes, rest }];
 }
@@ -151,7 +152,7 @@ function tubesAlong(length: number, taper: Taper): { from: number; to: number; r
 }
 
 /** What a file that is not an antenna file of MMANA is told. */
-const NOT_MAA = "Це не файл антени MMANA: він має починатися з назви, рядка «*» і частоти, а далі мати розділ дротів.";
+const notMaa = (): string => t("Це не файл антени MMANA: він має починатися з назви, рядка «*» і частоти, а далі мати розділ дротів.");
 
 /**
  * Reads an antenna file of MMANA (`.maa`). The sweep and whatever else the
@@ -169,7 +170,7 @@ export function importMaa(text: string, base: Model): Imported {
   const lines = text.split(/\r?\n/);
   const notes: string[] = [];
   const mark = lines.findIndex((line) => line.trim() === "*");
-  if (mark < 0) throw new Error(NOT_MAA);
+  if (mark < 0) throw new Error(notMaa());
   const name = lines.slice(0, mark).find((line) => line.trim() !== "")?.trim() ?? "";
 
   // The lines after the mark, one by one; empty lines do not count.
@@ -187,61 +188,61 @@ export function importMaa(text: string, base: Model): Imported {
   };
 
   const frequencyLine = next();
-  if (!heading()) throw new Error(NOT_MAA);
-  const [frequency] = numbers(frequencyLine, 1, "частоту");
-  if (!(frequency > 0)) throw new Error("Частота у файлі має бути більшою за нуль.");
+  if (!heading()) throw new Error(notMaa());
+  const [frequency] = numbers(frequencyLine, 1, t("частоту"));
+  if (!(frequency > 0)) throw new Error(t("Частота у файлі має бути більшою за нуль."));
 
   // The wires, the sources and the loads as the file has them, on its own wires.
-  const [wireCount] = numbers(next(), 1, "кількість дротів");
-  const raw = Array.from({ length: wireCount }, (_, i) => numbers(next(), 8, `дріт ${i + 1}`));
+  const [wireCount] = numbers(next(), 1, t("кількість дротів"));
+  const raw = Array.from({ length: wireCount }, (_, i) => numbers(next(), 8, t("дріт {n}", { n: i + 1 })));
 
   // The sources: their number and a flag, then for each its pulse, its phase in degrees and its voltage.
   const fileSources: { place: string; phase: number; voltage: number }[] = [];
-  const [sourceCount] = heading() ? numbers(next(), 1, "кількість джерел") : [0];
+  const [sourceCount] = heading() ? numbers(next(), 1, t("кількість джерел")) : [0];
   for (let i = 0; i < sourceCount; i++) {
     const line = next();
     const [place] = fields(line);
-    const [phase, voltage] = numbers(line, 2, `джерело ${i + 1}`, 1);
+    const [phase, voltage] = numbers(line, 2, t("джерело {n}", { n: i + 1 }), 1);
     fileSources.push({ place: place ?? "", phase, voltage });
   }
 
   // The loads: their number and whether they are in use, then for each its pulse, its type and the values of that type.
   const fileLoads: { place: string; line: string; index: number; values: Omit<LcLoad, "at"> | Omit<RxLoad, "at"> }[] = [];
   const loadNotes: string[] = [];
-  const [loadCount, loadsOn] = heading() ? numbers(next(), 2, "кількість навантажень") : [0, 1];
+  const [loadCount, loadsOn] = heading() ? numbers(next(), 2, t("кількість навантажень")) : [0, 1];
   for (let i = 0; i < loadCount; i++) {
     const line = next() ?? "";
     const [place, type] = fields(line);
     // The types: 0 for a coil and a capacitor, 1 for R + jX, 2 for a polynomial.
     const code = type ? Number(type) : NaN;
     if (code === 0) {
-      const [inductance, capacitance, q] = numbers(line, 3, `навантаження ${i + 1}`, 2);
+      const [inductance, capacitance, q] = numbers(line, 3, t("навантаження {n}", { n: i + 1 }), 2);
       fileLoads.push({ place, line, index: i, values: { kind: "lc", inductance, capacitance, q } });
     } else if (code === 1) {
-      const [resistance, reactance] = numbers(line, 2, `навантаження ${i + 1}`, 2);
+      const [resistance, reactance] = numbers(line, 2, t("навантаження {n}", { n: i + 1 }), 2);
       fileLoads.push({ place, line, index: i, values: { kind: "rx", resistance, reactance } });
     } else {
-      loadNotes.push(`Навантаження ${i + 1} (${place}) задане многочленом: такі ще не підтримуються, його пропущено.`);
+      loadNotes.push(t("Навантаження {n} ({place}) задане многочленом: такі ще не підтримуються, його пропущено.", { n: i + 1, place }));
     }
   }
-  if (fileLoads.length > 0 && loadsOn === 0) loadNotes.push("У файлі навантаження позначені вимкненими. Тут вони працюють: вилучіть зайві.");
+  if (fileLoads.length > 0 && loadsOn === 0) loadNotes.push(t("У файлі навантаження позначені вимкненими. Тут вони працюють: вилучіть зайві."));
 
   // The parameters of the segmentation of MMANA: this program has its own.
   if (heading()) next();
 
   // Ground, height to add, material, impedance of the line, and three values of the plots.
   const groundNotes: string[] = [];
-  const [groundCode, height, materialCode, reference] = heading() ? numbers(next(), 4, "рядок землі") : [0, 0, 0, base.reference];
+  const [groundCode, height, materialCode, reference] = heading() ? numbers(next(), 4, t("рядок землі")) : [0, 0, 0, base.reference];
   const kind = GROUNDS[groundCode];
-  if (!kind) throw new Error(`Невідомий тип землі у файлі: ${groundCode}.`);
-  if (kind === "real") groundNotes.push("Параметри реальної землі у файлі не зберігаються: взято середню землю (ε = 13, σ = 0,005 См/м).");
+  if (!kind) throw new Error(t("Невідомий тип землі у файлі: {code}.", { code: groundCode }));
+  if (kind === "real") groundNotes.push(t("Параметри реальної землі у файлі не зберігаються: взято середню землю (ε = 13, σ = 0,005 См/м)."));
   const material = MATERIALS[materialCode];
   if (!material) {
-    groundNotes.push(`Невідомий матеріал дротів у файлі (код ${materialCode}): узято дроти без втрат.`);
+    groundNotes.push(t("Невідомий матеріал дротів у файлі (код {code}): узято дроти без втрат.", { code: materialCode }));
   } else if (material[1] === IRON) {
-    groundNotes.push("Матеріал дротів у файлі: залізо. Взято провідність 10 МСм/м без магнітних властивостей: справжні втрати більші.");
+    groundNotes.push(t("Матеріал дротів у файлі: залізо. Взято провідність 10 МСм/м без магнітних властивостей: справжні втрати більші."));
   } else if (material[1] > 0) {
-    groundNotes.push(`Матеріал дротів у файлі має код ${materialCode}: узято ${material[0]}.`);
+    groundNotes.push(t("Матеріал дротів у файлі має код {code}: узято {material}.", { code: materialCode, material: t(material[0]) }));
   }
 
   // The taper wire set: the tubes of the wires whose radius is negative. Its heading starts with $$$.
@@ -249,7 +250,7 @@ export function importMaa(text: string, base: Model): Imported {
   for (let i = at; i < lines.length && !lines[i].trim().startsWith("###"); i++) {
     if (!lines[i].trim().startsWith("$$$")) continue;
     at = i + 1;
-    const [rowCount] = numbers(next(), 1, "кількість рядків таблиці труб");
+    const [rowCount] = numbers(next(), 1, t("кількість рядків таблиці труб"));
     for (let row = 1; row <= rowCount; row++) {
       const [pointer, taper] = taperRow(next() ?? "", row);
       // Of two rows with one pointer MMANA takes the first.
@@ -274,13 +275,13 @@ export function importMaa(text: string, base: Model): Imported {
   let starred = false;
   raw.forEach(([x1, y1, z1, x2, y2, z2, radius, segments], i) => {
     if (radius === 0) {
-      wireNotes.push(`Дріт ${i + 1} має радіус 0 (ізолятор у MMANA): його пропущено.`);
+      wireNotes.push(t("Дріт {n} має радіус 0 (ізолятор у MMANA): його пропущено.", { n: i + 1 }));
       return;
     }
     const length = Math.hypot(x2 - x1, y2 - y1, z2 - z1);
     const taper = radius < 0 ? tapers.get(radius) : undefined;
     if (radius < 0 && !taper) {
-      wireNotes.push(`Дріт ${i + 1} має від'ємний радіус, але рядка для нього в таблиці труб немає: взято радіус ${DEFAULT_RADIUS * 1000} мм.`);
+      wireNotes.push(t("Дріт {n} має від'ємний радіус, але рядка для нього в таблиці труб немає: взято радіус {radius} мм.", { n: i + 1, radius: DEFAULT_RADIUS * 1000 }));
     }
     let stretches = taper ? tubesAlong(length, taper) : [{ from: 0, to: length, radius: radius > 0 ? radius : DEFAULT_RADIUS }];
     if (taper && stretches.length > 1) starred ||= taper.starred;
@@ -311,11 +312,11 @@ export function importMaa(text: string, base: Model): Imported {
       });
     }
     if (stretches.length > 1) {
-      wireNotes.push(`Дріт ${i + 1} складено з труб різного радіуса: тут це дроти ${first + 1}–${first + stretches.length}, кожна труба окремо.`);
+      wireNotes.push(t("Дріт {n} складено з труб різного радіуса: тут це дроти {first}–{last}, кожна труба окремо.", { n: i + 1, first: first + 1, last: first + stretches.length }));
     }
   });
-  if (wires.length === 0) throw new Error("У файлі немає жодного дроту.");
-  if (starred) wireNotes.push("Тип труб зі зірочкою (<>* або ->*) прочитано так само, як без неї: що змінює зірочка, довідка MMANA не пояснює.");
+  if (wires.length === 0) throw new Error(t("У файлі немає жодного дроту."));
+  if (starred) wireNotes.push(t("Тип труб зі зірочкою (<>* або ->*) прочитано так само, як без неї: що змінює зірочка, довідка MMANA не пояснює."));
 
   /**
    * A pulse of the file on the wires of the model, or `null` if it is not one
@@ -333,23 +334,23 @@ export function importMaa(text: string, base: Model): Imported {
     const middle = entry.length / 2;
     const joint = entry.ends.findIndex((end) => Math.abs(end - middle) <= 1e-9 * entry.length);
     if (joint < 0) return { ...parsed, wire: entry.first + entry.ends.findIndex((end) => end > middle) };
-    if (parsed.offset) pulseNotes.push(`Зсув у ${text.trim()} від центру дроту з труб не перенесено: це місце стоїть на стику в центрі.`);
+    if (parsed.offset) pulseNotes.push(t("Зсув у {place} від центру дроту з труб не перенесено: це місце стоїть на стику в центрі.", { place: text.trim() }));
     return { wire: entry.first + joint, place: "e" };
   };
 
   const sources: Source[] = fileSources.map(({ place, phase, voltage }) => {
     const found = pulse(place);
-    if (!found) throw new Error(`Не вдалося прочитати джерело: «${place}».`);
+    if (!found) throw new Error(t("Не вдалося прочитати джерело: «{place}».", { place }));
     return { at: found, phase, voltage };
   });
   const sourceNotes: string[] = [];
   if (sources.length === 0) {
-    sourceNotes.push("У файлі немає джерела: його поставлено в центр дроту 1.");
+    sourceNotes.push(t("У файлі немає джерела: його поставлено в центр дроту 1."));
     sources.push({ at: { wire: 0, place: "c" }, phase: 0, voltage: 1 });
   }
   const loads: Load[] = fileLoads.map(({ place, line, index, values }) => {
     const found = pulse(place);
-    if (!found) throw new Error(`Не вдалося прочитати навантаження ${index + 1}: «${line.trim()}».`);
+    if (!found) throw new Error(t("Не вдалося прочитати навантаження {n}: «{line}».", { n: index + 1, line: line.trim() }));
     return { ...values, at: found };
   });
   notes.push(...wireNotes, ...pulseNotes, ...sourceNotes, ...loadNotes, ...groundNotes);
@@ -399,9 +400,9 @@ export function exportMaa(model: Model): { text: string; notes: string[] } {
   const row = (...values: (string | number)[]): string => values.join(",\t");
   const material = materialCode(model.wireConductivity);
   if (model.wireConductivity > 0 && MATERIALS[material][1] !== model.wireConductivity) {
-    notes.push(`Файл MMANA знає лише готові матеріали: замість вашої провідності записано найближчий, ${MATERIALS[material][0]}.`);
+    notes.push(t("Файл MMANA знає лише готові матеріали: замість вашої провідності записано найближчий, {material}.", { material: t(MATERIALS[material][0]) }));
   }
-  if (model.ground.kind === "real") notes.push("Параметри реальної землі у файлі MMANA не зберігаються.");
+  if (model.ground.kind === "real") notes.push(t("Параметри реальної землі у файлі MMANA не зберігаються."));
   const lines = [
     model.name.replace(/\s+/g, " ").trim(),
     "*",

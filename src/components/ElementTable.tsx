@@ -4,6 +4,7 @@ import { copyElement, copyShift, elementRows, removeWires, setCentre, setLength,
 import type { Model } from "../model";
 import { Hint } from "./Help";
 import { NumberField } from "./NumberField";
+import { t } from "../i18n";
 
 interface Props {
   model: Model;
@@ -32,21 +33,21 @@ export function ElementTable({ model, onChange }: Props) {
           <tr>
             <th>№</th>
             <th>
-              <Hint topic="elementWires">Дроти</Hint>
+              <Hint topic="elementWires">{t("Дроти")}</Hint>
             </th>
             {AXES.map((axis) => (
               <th key={axis}>
-                <Hint topic="elementCentre">{axis.toUpperCase()}, м</Hint>
+                <Hint topic="elementCentre">{t("{coordinate}, м", { coordinate: axis.toUpperCase() })}</Hint>
               </th>
             ))}
             <th>
-              <Hint topic="elementLength">Довжина, м</Hint>
+              <Hint topic="elementLength">{t("Довжина, м")}</Hint>
             </th>
             <th>
-              <Hint topic="elementDiameter">Ø, мм</Hint>
+              <Hint topic="elementDiameter">{t("Ø, мм")}</Hint>
             </th>
             <th>
-              <span className="sr-only">Дії</span>
+              <span className="sr-only">{t("Дії")}</span>
             </th>
           </tr>
         </thead>
@@ -59,7 +60,7 @@ export function ElementTable({ model, onChange }: Props) {
                 <td key={axis}>
                   <NumberField
                     hideLabel
-                    label={`Елемент ${row.number}, центр ${axis.toUpperCase()}`}
+                    label={t("Елемент {n}, центр {coordinate}", { n: row.number, coordinate: axis.toUpperCase() })}
                     value={tidy(row.centre[k])}
                     onChange={(value) => onChange(setCentre(model, row.wires[0], axis, value))}
                   />
@@ -68,7 +69,7 @@ export function ElementTable({ model, onChange }: Props) {
               <td>
                 <NumberField
                   hideLabel
-                  label={`Елемент ${row.number}, довжина`}
+                  label={t("Елемент {n}, довжина", { n: row.number })}
                   value={tidy(row.length)}
                   onChange={(value) => {
                     const changed = setLength(model, row.wires[0], value);
@@ -77,7 +78,7 @@ export function ElementTable({ model, onChange }: Props) {
                       onChange(changed);
                     } else {
                       const least = tidy(shortestLength(model, row.wires[0]));
-                      setProblem(`Елемент ${row.number}: довжина має бути більшою за ${least} м, інакше кінці зайдуть за стики його труб.`);
+                      setProblem(t("Елемент {n}: довжина має бути більшою за {least} м, інакше кінці зайдуть за стики його труб.", { n: row.number, least }));
                     }
                   }}
                 />
@@ -86,13 +87,13 @@ export function ElementTable({ model, onChange }: Props) {
                 {row.diameter !== null ? (
                   <NumberField
                     hideLabel
-                    label={`Елемент ${row.number}, діаметр`}
+                    label={t("Елемент {n}, діаметр", { n: row.number })}
                     value={tidy(row.diameter * 1000)}
                     onChange={(value) => value > 0 && onChange(setRadius(model, row.wires, value / 2000))}
                   />
                 ) : (
                   <Hint topic="elementTubes">
-                    <span className="tubes">{row.tubes ? row.tubes.map((one) => tidy(one.diameter * 1000)).join(" / ") : "різні"}</span>
+                    <span className="tubes">{row.tubes ? row.tubes.map((one) => tidy(one.diameter * 1000)).join(" / ") : t("різні")}</span>
                   </Hint>
                 )}
               </td>
@@ -106,13 +107,13 @@ export function ElementTable({ model, onChange }: Props) {
                       onChange(copyElement(model, row.wires, copyShift(model, rows, row)), true);
                     }}
                   >
-                    Копія
+                    {t("Копія")}
                   </button>
                 </Hint>
                 <button
                   type="button"
                   className="quiet"
-                  aria-label={`Вилучити елемент ${row.number}`}
+                  aria-label={t("Вилучити елемент {n}", { n: row.number })}
                   onClick={() => {
                     setProblem(null);
                     onChange(removeWires(model, row.wires), true);

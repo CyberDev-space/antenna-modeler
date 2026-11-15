@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { TOPICS, type Topic } from "./help";
+import { TOPICS_EN } from "./help.en";
 
 const topics = Object.entries(TOPICS) as [string, Topic][];
 
@@ -38,5 +39,18 @@ describe("help", () => {
       .map((path) => readFileSync(path, "utf8"))
       .join("\n");
     for (const [key] of topics) expect(sources.includes(`"${key}"`), key).toBe(true);
+  });
+
+  it("has every topic in English too, of the same shape and with the same notations", () => {
+    const notations = (topic: Topic): string[] => texts(topic).flatMap((text) => text.split("`").filter((_, k) => k % 2 === 1));
+    for (const [key, topic] of topics) {
+      const english = TOPICS_EN[key as keyof typeof TOPICS_EN];
+      expect(english, key).toBeDefined();
+      expect(english.table?.rows.length, key).toBe(topic.table?.rows.length);
+      expect(english.how?.length, key).toBe(topic.how?.length);
+      for (const field of ["howTitle", "affects", "defaults"] as const) expect(english[field] === undefined, `${key}.${field}`).toBe(topic[field] === undefined);
+      expect(notations(english), key).toEqual(notations(topic));
+      expect(texts(english).some((text) => /[А-Яа-яЇїІіЄєҐґ]/.test(text)), key).toBe(false);
+    }
   });
 });

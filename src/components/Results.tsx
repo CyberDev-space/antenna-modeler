@@ -2,6 +2,7 @@ import type { Summary } from "../analysis";
 import { Card } from "./Card";
 import { Hint } from "./Help";
 import { PolarPlot } from "./PolarPlot";
+import { t } from "../i18n";
 
 /** A number with a true minus sign, and without the sign of a rounded zero. */
 export function fixed(value: number, digits: number): string {
@@ -13,7 +14,7 @@ export function fixed(value: number, digits: number): string {
 export const degrees = (value: number): string => String(Number(value.toFixed(1))).replace("-", "−");
 
 export function impedance([r, x]: [number, number]): string {
-  return `${fixed(r, 1)} ${x < 0 ? "−" : "+"} j${Math.abs(x).toFixed(1)} Ом`;
+  return t("{r} {sign} j{x} Ом", { r: fixed(r, 1), sign: x < 0 ? "−" : "+", x: Math.abs(x).toFixed(1) });
 }
 
 export const swrText = (value: number): string => (Number.isFinite(value) ? fixed(value, 2) : "∞");
@@ -38,13 +39,13 @@ export function SummaryTiles({ summary, sources, reference, lossy }: TilesProps)
           <>
             <div>
               <dt>
-                <Hint topic="impedance">Вхідний опір</Hint>
+                <Hint topic="impedance">{t("Вхідний опір")}</Hint>
               </dt>
               <dd>{impedance(summary.impedance)}</dd>
             </div>
             <div>
               <dt>
-                <Hint topic="swr">КСХ ({reference} Ом)</Hint>
+                <Hint topic="swr">{t("КСХ ({reference} Ом)", { reference })}</Hint>
               </dt>
               <dd>{swrText(summary.swr)}</dd>
             </div>
@@ -52,32 +53,32 @@ export function SummaryTiles({ summary, sources, reference, lossy }: TilesProps)
         )}
         <div>
           <dt>
-            <Hint topic="gain">Підсилення</Hint>
+            <Hint topic="gain">{t("Підсилення")}</Hint>
           </dt>
-          <dd>{fixed(summary.gain, 2)} дБі</dd>
+          <dd>{t("{gain} дБі", { gain: fixed(summary.gain, 2) })}</dd>
         </div>
         <div>
           <dt>
-            <Hint topic="frontToBack">Фронт/тил</Hint>
+            <Hint topic="frontToBack">{t("Фронт/тил")}</Hint>
           </dt>
-          <dd>{summary.frontToBack === null ? "—" : `${fixed(summary.frontToBack, 1)} дБ`}</dd>
+          <dd>{summary.frontToBack === null ? "—" : t("{ratio} дБ", { ratio: fixed(summary.frontToBack, 1) })}</dd>
         </div>
         <div>
           <dt>
-            <Hint topic="elevation">Кут випромінювання</Hint>
+            <Hint topic="elevation">{t("Кут випромінювання")}</Hint>
           </dt>
           <dd>{degrees(summary.elevation)}°</dd>
         </div>
         <div>
           <dt>
-            <Hint topic="azimuth">Азимут максимуму</Hint>
+            <Hint topic="azimuth">{t("Азимут максимуму")}</Hint>
           </dt>
           <dd>{fixed(summary.azimuth, 0)}°</dd>
         </div>
         {lossy && summary.efficiency !== null && (
           <div>
             <dt>
-              <Hint topic="efficiency">ККД</Hint>
+              <Hint topic="efficiency">{t("ККД")}</Hint>
             </dt>
             <dd>{fixed(summary.efficiency * 100, 1)} %</dd>
           </div>
@@ -87,15 +88,15 @@ export function SummaryTiles({ summary, sources, reference, lossy }: TilesProps)
         <table className="ports">
           <thead>
             <tr>
-              <th>Джерело</th>
+              <th>{t("Джерело")}</th>
               <th>
-                <Hint topic="impedance">Вхідний опір</Hint>
+                <Hint topic="impedance">{t("Вхідний опір")}</Hint>
               </th>
               <th>
-                <Hint topic="swr">КСХ ({reference} Ом)</Hint>
+                <Hint topic="swr">{t("КСХ ({reference} Ом)", { reference })}</Hint>
               </th>
               <th>
-                <Hint topic="portPower">Потужність</Hint>
+                <Hint topic="portPower">{t("Потужність")}</Hint>
               </th>
             </tr>
           </thead>
@@ -105,7 +106,7 @@ export function SummaryTiles({ summary, sources, reference, lossy }: TilesProps)
                 <td>
                   {index + 1}: {sources[index]}
                 </td>
-                <td>{port.impedance ? impedance(port.impedance) : "без напруги"}</td>
+                <td>{port.impedance ? impedance(port.impedance) : t("без напруги")}</td>
                 <td>{port.swr === null ? "—" : swrText(port.swr)}</td>
                 <td>{input > 0 && port.impedance ? `${fixed((port.power / input) * 100, 0)} %` : "—"}</td>
               </tr>
@@ -126,9 +127,9 @@ interface PatternProps {
 /** The two cuts of the pattern through its maximum, each in a card of its own. */
 export function PatternCards({ summary, overGround }: PatternProps) {
   const ring = Math.ceil(summary.gain);
-  const scale = <span className="caption">зовнішнє коло {ring} дБі</span>;
-  const horizontal = `Горизонтальна діаграма, кут ${fixed(summary.cutElevation, 0)}°`;
-  const vertical = `Вертикальна діаграма, азимут ${fixed(summary.azimuth, 0)}°`;
+  const scale = <span className="caption">{t("зовнішнє коло {ring} дБі", { ring })}</span>;
+  const horizontal = t("Горизонтальна діаграма, кут {angle}°", { angle: fixed(summary.cutElevation, 0) });
+  const vertical = t("Вертикальна діаграма, азимут {angle}°", { angle: fixed(summary.azimuth, 0) });
   return (
     <>
       <Card title={<Hint topic="patternHorizontal">{horizontal}</Hint>} actions={scale} className="pattern-h">

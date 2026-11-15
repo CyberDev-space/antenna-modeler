@@ -1,6 +1,7 @@
 import { useState, type PointerEvent } from "react";
 import { ticks } from "../ticks";
 import { fontScale, useSize } from "../useSize";
+import { t } from "../i18n";
 
 export interface Series {
   name: string;
@@ -44,7 +45,7 @@ export function rangeOf(values: number[], least: number): [number, number] {
 }
 
 /** A chart of one or two quantities against frequency, with a readout under the pointer. It fills the space it is given. */
-export function LineChart({ title, x, xUnit = "МГц", xFormat = megahertz, series, range, guides = [], marker, format }: Props) {
+export function LineChart({ title, x, xUnit = t("МГц"), xFormat = megahertz, series, range, guides = [], marker, format }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const [host, size] = useSize<HTMLDivElement>();
   const WIDTH = size.width || 520;

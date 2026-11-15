@@ -3,6 +3,7 @@ import type { Load } from "../model";
 import { Hint } from "./Help";
 import { NumberField } from "./NumberField";
 import { PulseField } from "./PulseField";
+import { t } from "../i18n";
 
 interface Props {
   loads: Load[];
@@ -21,10 +22,10 @@ export function LoadTable({ loads, onChange }: Props) {
         return (
           <div className="load" key={index}>
             <span className="index">{index + 1}</span>
-            <PulseField label="Місце" help="loadPulse" value={load.at} onChange={(at) => replace(index, { ...load, at })} />
+            <PulseField label={t("Місце")} help="loadPulse" value={load.at} onChange={(at) => replace(index, { ...load, at })} />
             <label className="field">
               <span>
-                <Hint topic="loadType">Тип</Hint>
+                <Hint topic="loadType">{t("Тип")}</Hint>
               </span>
               <select
                 value={load.kind}
@@ -43,8 +44,8 @@ export function LoadTable({ loads, onChange }: Props) {
             </label>
             {load.kind === "lc" ? (
               <>
-                <NumberField label="L, мкГн" help="loadL" value={load.inductance} onChange={(inductance) => replace(index, { ...load, inductance })} />
-                <NumberField label="C, пФ" help="loadC" value={load.capacitance} onChange={(capacitance) => replace(index, { ...load, capacitance })} />
+                <NumberField label={t("L, мкГн")} help="loadL" value={load.inductance} onChange={(inductance) => replace(index, { ...load, inductance })} />
+                <NumberField label={t("C, пФ")} help="loadC" value={load.capacitance} onChange={(capacitance) => replace(index, { ...load, capacitance })} />
                 <NumberField
                   label="Q"
                   help="loadQ"
@@ -54,24 +55,24 @@ export function LoadTable({ loads, onChange }: Props) {
               </>
             ) : (
               <>
-                <NumberField label="R, Ом" help="loadR" value={load.resistance} onChange={(resistance) => replace(index, { ...load, resistance })} />
-                <NumberField label="X, Ом" help="loadX" value={load.reactance} onChange={(reactance) => replace(index, { ...load, reactance })} />
+                <NumberField label={t("R, Ом")} help="loadR" value={load.resistance} onChange={(resistance) => replace(index, { ...load, resistance })} />
+                <NumberField label={t("X, Ом")} help="loadX" value={load.reactance} onChange={(reactance) => replace(index, { ...load, reactance })} />
               </>
             )}
             <button
               type="button"
               className="quiet remove"
-              aria-label={`Вилучити навантаження ${index + 1}`}
+              aria-label={t("Вилучити навантаження {n}", { n: index + 1 })}
               onClick={() => onChange(loads.filter((_, i) => i !== index))}
             >
               ×
             </button>
-            {trap !== null && <span className="resonance">трап на {trap.toFixed(3)} МГц</span>}
+            {trap !== null && <span className="resonance">{t("трап на {frequency} МГц", { frequency: trap.toFixed(3) })}</span>}
           </div>
         );
       })}
       <button type="button" onClick={add}>
-        Додати навантаження
+        {t("Додати навантаження")}
       </button>
     </div>
   );

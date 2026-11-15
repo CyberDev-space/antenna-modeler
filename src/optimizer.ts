@@ -1,6 +1,7 @@
 import type { Summary } from "./analysis";
 import { element, type Link, type Point } from "./geometry";
 import type { LcLoad, Model, RxLoad, Wire } from "./model";
+import { t } from "./i18n";
 
 export type Axis = "x" | "y" | "z";
 
@@ -131,15 +132,15 @@ export function apply(model: Model, variable: Variable, value: number): Model {
 export function describe(variable: Variable): string {
   switch (variable.kind) {
     case "length":
-      return `Довжина елемента з дротом ${variable.wire + 1}, м`;
+      return t("Довжина елемента з дротом {wire}, м", { wire: variable.wire + 1 });
     case "position":
-      return `Положення елемента з дротом ${variable.wire + 1} по ${variable.axis.toUpperCase()}, м`;
+      return t("Положення елемента з дротом {wire} по {axis}, м", { wire: variable.wire + 1, axis: variable.axis.toUpperCase() });
     case "load": {
-      const unit = { inductance: "L, мкГн", capacitance: "C, пФ", resistance: "R, Ом", reactance: "X, Ом" }[variable.part];
-      return `Навантаження ${variable.load + 1}: ${unit}`;
+      const unit = { inductance: t("L, мкГн"), capacitance: t("C, пФ"), resistance: t("R, Ом"), reactance: t("X, Ом") }[variable.part];
+      return t("Навантаження {load}: {unit}", { load: variable.load + 1, unit });
     }
     case "phase":
-      return `Фаза джерела ${variable.source + 1}, °`;
+      return t("Фаза джерела {source}, °", { source: variable.source + 1 });
   }
 }
 
@@ -147,20 +148,20 @@ export function describe(variable: Variable): string {
 export function check(model: Model, settings: Setting[]): string[] {
   const problems: string[] = [];
   settings.forEach((setting, index) => {
-    const name = `Змінна ${index + 1}`;
+    const name = t("Змінна {n}", { n: index + 1 });
     if ((setting.kind === "length" || setting.kind === "position") && !model.wires[setting.wire]) {
-      problems.push(`${name}: дроту ${setting.wire + 1} немає.`);
+      problems.push(t("{name}: дроту {wire} немає.", { name, wire: setting.wire + 1 }));
     } else if (setting.kind === "load") {
       const load = model.loads[setting.load];
       const fits = load && (load.kind === "lc" ? ["inductance", "capacitance"] : ["resistance", "reactance"]).includes(setting.part);
-      if (!load) problems.push(`${name}: навантаження ${setting.load + 1} немає.`);
-      else if (!fits) problems.push(`${name}: навантаження ${setting.load + 1} не має такої величини.`);
+      if (!load) problems.push(t("{name}: навантаження {load} немає.", { name, load: setting.load + 1 }));
+      else if (!fits) problems.push(t("{name}: навантаження {load} не має такої величини.", { name, load: setting.load + 1 }));
     } else if (setting.kind === "phase" && !model.sources[setting.source]) {
-      problems.push(`${name}: джерела ${setting.source + 1} немає.`);
+      problems.push(t("{name}: джерела {source} немає.", { name, source: setting.source + 1 }));
     }
-    if (!(setting.min < setting.max)) problems.push(`${name}: «від» має бути меншим за «до».`);
-    if (!(setting.step > 0)) problems.push(`${name}: крок має бути більшим за нуль.`);
-    if (setting.kind === "length" && !(setting.min > 0)) problems.push(`${name}: довжина має бути більшою за нуль.`);
+    if (!(setting.min < setting.max)) problems.push(t("{name}: «від» має бути меншим за «до».", { name }));
+    if (!(setting.step > 0)) problems.push(t("{name}: крок має бути більшим за нуль.", { name }));
+    if (setting.kind === "length" && !(setting.min > 0)) problems.push(t("{name}: довжина має бути більшою за нуль.", { name }));
   });
   return problems;
 }

@@ -132,9 +132,20 @@ body {
   gap: 6px;
 }
 
-.history-actions {
+.history-actions,
+.language-switch {
   display: flex;
   gap: 2px;
+}
+
+.language-switch button {
+  padding: 4px 8px;
+}
+
+.language-switch button.on {
+  border-color: var(--line);
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .history-actions button {

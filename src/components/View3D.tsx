@@ -9,6 +9,7 @@ import { bounds, farthest, feedPoint, placedWires, roughMarks, type Marks, type 
 import type { Model } from "../model";
 import { PATTERN_RANGE, surface, viridis, type PatternGrid } from "../pattern";
 import { Hint } from "./Help";
+import { t } from "../i18n";
 
 interface Props {
   model: Model;
@@ -341,22 +342,22 @@ export function View3D({ model, marks, pattern, currents }: Props) {
     .map((part) => `rgb(${viridis(part).map((value) => Math.round(value * 255)).join(" ")})`)
     .join(", ")})`;
 
-  if (unavailable) return <p className="note">Тривимірний вигляд недоступний у цьому браузері.</p>;
+  if (unavailable) return <p className="note">{t("Тривимірний вигляд недоступний у цьому браузері.")}</p>;
   return (
     <div className="view3d">
-      <div className="canvas" ref={host} role="img" aria-label="Тривимірний вигляд антени" />
+      <div className="canvas" ref={host} role="img" aria-label={t("Тривимірний вигляд антени")} />
       <div className="view-bar">
         <span className="axes">
           <span className="axis-x">X</span> <span className="axis-y">Y</span> <span className="axis-z">Z</span>
-          {sources.length > 0 && <span className="mark source-mark">{sources.length > 1 ? "джерела" : "джерело"}</span>}
-          {loads.length > 0 && <span className="mark load-mark">навантаження</span>}
+          {sources.length > 0 && <span className="mark source-mark">{sources.length > 1 ? t("джерела") : t("джерело")}</span>}
+          {loads.length > 0 && <span className="mark load-mark">{t("навантаження")}</span>}
         </span>
         <span className="view-actions">
           {currents && (
             <Hint topic="currentsToggle">
               <label className="toggle">
                 <input type="checkbox" checked={currentsWanted} onChange={(event) => setCurrentsWanted(event.target.checked)} />
-                Струми
+                {t("Струми")}
               </label>
             </Hint>
           )}
@@ -364,13 +365,13 @@ export function View3D({ model, marks, pattern, currents }: Props) {
             <Hint topic="patternToggle">
               <label className="toggle">
                 <input type="checkbox" checked={patternWanted} onChange={(event) => setPatternWanted(event.target.checked)} />
-                Діаграма
+                {t("Діаграма")}
               </label>
             </Hint>
           )}
           <Hint topic="fitView">
             <button type="button" className="quiet" onClick={() => setFitRequest((count) => count + 1)}>
-              Показати все
+              {t("Показати все")}
             </button>
           </Hint>
         </span>
@@ -379,7 +380,10 @@ export function View3D({ model, marks, pattern, currents }: Props) {
         <p className="pattern-legend">
           <span className="current-swatch" aria-hidden="true" />
           <span>
-            Струми: висота кривої над дротом — амплітуда струму; найбільший {topCurrent.toFixed(2)} А при {CURRENT_POWER} Вт.
+            {t("Струми: висота кривої над дротом — амплітуда струму; найбільший {current} А при {power} Вт.", {
+              current: topCurrent.toFixed(2),
+              power: CURRENT_POWER,
+            })}
           </span>
         </p>
       )}
@@ -387,8 +391,10 @@ export function View3D({ model, marks, pattern, currents }: Props) {
         <p className="pattern-legend">
           <span className="ramp" style={{ background: legend }} aria-hidden="true" />
           <span>
-            Підсилення: від {(top - PATTERN_RANGE).toFixed(0)} до {top.toFixed(1)} дБі. Відстань від точки живлення й колір — у тій самій
-            шкалі, що й плоскі діаграми; максимум сягає найдальшої від неї точки антени.
+            {t("Підсилення: від {low} до {high} дБі. Відстань від точки живлення й колір — у тій самій шкалі, що й плоскі діаграми; максимум сягає найдальшої від неї точки антени.", {
+              low: (top - PATTERN_RANGE).toFixed(0),
+              high: top.toFixed(1),
+            })}
           </span>
         </p>
       )}

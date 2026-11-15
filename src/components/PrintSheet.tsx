@@ -11,6 +11,7 @@ import { degrees, fixed, impedance, swrText } from "./Results";
 import { GAIN_SPAN, RATIO_SPAN } from "./SweepPanel";
 import { CABLES, ohms, partName, reactance, Schematic, value, type MatchingInputs } from "./MatchingPanel";
 import { hairpin, lNetworks, quarterWave, throughQuarterWave } from "../matching";
+import { language, N, t } from "../i18n";
 
 /** The results that the sheet prints, as the page holds them. */
 export interface SheetResults {
@@ -44,7 +45,7 @@ interface Props {
   matching: MatchingInputs;
 }
 
-const GROUNDS = { free: "вільний простір", perfect: "ідеальна", real: "реальна" } as const;
+const GROUNDS = { free: N("вільний простір"), perfect: N("ідеальна"), real: N("реальна") } as const;
 
 /**
  * A drawing of the antenna in the plane where it reaches farthest: the
@@ -82,7 +83,7 @@ function Plan({ model, deck, rows }: { model: Model; deck: Deck; rows: ElementRo
   const bar = [1, 2, 5, 10].map((k) => k * power).filter((value) => value <= rough).pop() ?? power;
 
   return (
-    <svg className="plan" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Креслення антени в площині ${AXIS_NAMES[a]}${AXIS_NAMES[b]} з розмірами в міліметрах`}>
+    <svg className="plan" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t("Креслення антени в площині {plane} з розмірами в міліметрах", { plane: `${AXIS_NAMES[a]}${AXIS_NAMES[b]}` })}>
       <defs>
         <marker id="dim-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,1 L10,5 L0,9 Z" className="dim-arrow" />
@@ -134,10 +135,10 @@ function Plan({ model, deck, rows }: { model: Model; deck: Deck; rows: ElementRo
         <line x1={margin.left} y1={height - 16} x2={margin.left} y2={height - 8} />
         <line x1={margin.left + bar * scale} y1={height - 16} x2={margin.left + bar * scale} y2={height - 8} />
         <text x={margin.left + bar * scale + 6} y={height - 8}>
-          {bar >= 1 ? `${bar} м` : `${millimetres(bar)} мм`}
+          {bar >= 1 ? t("{length} м", { length: bar }) : t("{length} мм", { length: millimetres(bar) })}
         </text>
         <text x={width - 8} y={height - 8} textAnchor="end">
-          розміри в мм · {AXIS_NAMES[a]} праворуч, {AXIS_NAMES[b]} угору
+          {t("розміри в мм · {right} праворуч, {up} угору", { right: AXIS_NAMES[a], up: AXIS_NAMES[b] })}
         </text>
       </g>
     </svg>
@@ -154,72 +155,72 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
   const layout = boom(rows);
   const wires = placedWires(model);
   const ring = results ? Math.ceil(results.summary.gain) : 0;
-  const date = new Date().toLocaleDateString("uk-UA", { year: "numeric", month: "long", day: "numeric" });
+  const date = new Date().toLocaleDateString(language() === "en" ? "en-GB" : "uk-UA", { year: "numeric", month: "long", day: "numeric" });
   const segments = [...deck.segments, ...deck.equivalents.map((one) => one.segments)].reduce((sum, count) => sum + count, 0);
   const replaced = new Set(deck.equivalents.flatMap((one) => one.wires));
-  const metal = model.wireConductivity > 0 ? `провідність ${Number((model.wireConductivity / 1e6).toPrecision(4))} МСм/м` : "без втрат";
+  const metal = model.wireConductivity > 0 ? t("провідність {value} МСм/м", { value: Number((model.wireConductivity / 1e6).toPrecision(4)) }) : t("без втрат");
 
   return (
     <article className="print-sheet" aria-hidden="true">
       <header className="sheet-head">
-        <h1>{model.name.trim() || "Антена"}</h1>
+        <h1>{model.name.trim() || t("Антена")}</h1>
         <p>
-          Специфікація антени · {date} · antenna-modeler, ядро NEC-2
+          {t("Специфікація антени · {date} · antenna-modeler, ядро NEC-2", { date })}
         </p>
       </header>
 
       <section className="sheet-two">
         <dl className="sheet-facts">
-          <dt>Частота</dt>
-          <dd>{model.frequency} МГц</dd>
-          <dt>Земля</dt>
+          <dt>{t("Частота")}</dt>
+          <dd>{t("{frequency} МГц", { frequency: model.frequency })}</dd>
+          <dt>{t("Земля")}</dt>
           <dd>
-            {GROUNDS[model.ground.kind]}
-            {model.ground.kind === "real" && `, ε = ${model.ground.permittivity}, σ = ${model.ground.conductivity} См/м`}
+            {t(GROUNDS[model.ground.kind])}
+            {model.ground.kind === "real" && t(", ε = {permittivity}, σ = {conductivity} См/м", { permittivity: model.ground.permittivity, conductivity: model.ground.conductivity })}
           </dd>
           {model.ground.kind !== "free" && model.height !== 0 && (
             <>
-              <dt>Додана висота</dt>
-              <dd>{model.height} м</dd>
+              <dt>{t("Додана висота")}</dt>
+              <dd>{t("{length} м", { length: model.height })}</dd>
             </>
           )}
-          <dt>Лінія живлення</dt>
-          <dd>{model.reference} Ом</dd>
-          <dt>Матеріал дротів</dt>
+          <dt>{t("Лінія живлення")}</dt>
+          <dd>{t("{value} Ом", { value: model.reference })}</dd>
+          <dt>{t("Матеріал дротів")}</dt>
           <dd>{metal}</dd>
-          <dt>Сегментів</dt>
+          <dt>{t("Сегментів")}</dt>
           <dd>{segments || "—"}</dd>
         </dl>
         {results ? (
           <dl className="sheet-facts">
             {results.summary.ports.length === 1 && (
               <>
-                <dt>Вхідний опір</dt>
+                <dt>{t("Вхідний опір")}</dt>
                 <dd>{impedance(results.summary.impedance)}</dd>
-                <dt>КСХ ({results.reference} Ом)</dt>
+                <dt>{t("КСХ ({reference} Ом)", { reference: results.reference })}</dt>
                 <dd>{swrText(results.summary.swr)}</dd>
               </>
             )}
-            <dt>Підсилення</dt>
-            <dd>{fixed(results.summary.gain, 2)} дБі</dd>
-            <dt>Фронт/тил</dt>
-            <dd>{results.summary.frontToBack === null ? "—" : `${fixed(results.summary.frontToBack, 1)} дБ`}</dd>
-            <dt>Кут випромінювання</dt>
+            <dt>{t("Підсилення")}</dt>
+            <dd>{t("{gain} дБі", { gain: fixed(results.summary.gain, 2) })}</dd>
+            <dt>{t("Фронт/тил")}</dt>
+            <dd>{results.summary.frontToBack === null ? "—" : t("{ratio} дБ", { ratio: fixed(results.summary.frontToBack, 1) })}</dd>
+            <dt>{t("Кут випромінювання")}</dt>
             <dd>{degrees(results.summary.elevation)}°</dd>
-            <dt>Азимут максимуму</dt>
+            <dt>{t("Азимут максимуму")}</dt>
             <dd>{fixed(results.summary.azimuth, 0)}°</dd>
             {results.lossy && results.summary.efficiency !== null && (
               <>
-                <dt>ККД</dt>
+                <dt>{t("ККД")}</dt>
                 <dd>{fixed(results.summary.efficiency * 100, 1)} %</dd>
               </>
             )}
           </dl>
         ) : (
-          <p className="note">Модель не розраховано.</p>
+          <p className="note">{t("Модель не розраховано.")}</p>
         )}
       </section>
-      {stale && <p className="sheet-warning">Результати не відповідають моделі: розрахуйте її перед друком.</p>}
+      {stale && <p className="sheet-warning">{t("Результати не відповідають моделі: розрахуйте її перед друком.")}</p>}
       {deck.errors.length > 0 && (
         <ul className="sheet-warning">
           {deck.errors.map((error) => (
@@ -228,23 +229,22 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
         </ul>
       )}
 
-      <h2>Креслення</h2>
+      <h2>{t("Креслення")}</h2>
       <Plan model={model} deck={deck} rows={rows} />
       <p className="sheet-small">
-        Біля кожного елемента — його довжина; під антеною — відстані між центрами сусідніх елементів і загальна довжина, у мм. Помаранчеві точки —
-        джерела, зелені — навантаження; числа над елементами — їхні номери в таблиці нижче.
+        {t("Біля кожного елемента — його довжина; під антеною — відстані між центрами сусідніх елементів і загальна довжина, у мм. Помаранчеві точки — джерела, зелені — навантаження; числа над елементами — їхні номери в таблиці нижче.")}
       </p>
 
-      <h2>Елементи</h2>
+      <h2>{t("Елементи")}</h2>
       <table className="sheet-table">
         <thead>
           <tr>
             <th>№</th>
-            <th>Дроти</th>
-            <th>Довжина, мм</th>
-            <th>Центр (X; Y; Z), мм</th>
-            <th>Напрям</th>
-            <th>Діаметр або труби від центру, мм</th>
+            <th>{t("Дроти")}</th>
+            <th>{t("Довжина, мм")}</th>
+            <th>{t("Центр (X; Y; Z), мм")}</th>
+            <th>{t("Напрям")}</th>
+            <th>{t("Діаметр або труби від центру, мм")}</th>
           </tr>
         </thead>
         <tbody>
@@ -257,10 +257,10 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
               <td>{directionText(row.direction)}</td>
               <td>
                 {row.tubes
-                  ? row.tubes.map((tube, k) => `${k === 0 ? "центр" : "2 ×"} ${millimetres(tube.length)} × Ø${millimetres(tube.diameter)}`).join(", ")
+                  ? row.tubes.map((tube, k) => `${k === 0 ? t("центр") : "2 ×"} ${millimetres(tube.length)} × Ø${millimetres(tube.diameter)}`).join(", ")
                   : row.diameter !== null
                     ? `Ø${millimetres(row.diameter)}`
-                    : "різні"}
+                    : t("різні")}
               </td>
             </tr>
           ))}
@@ -269,13 +269,13 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
 
       {layout && (
         <>
-          <h2>Розташування на траверсі (уздовж {AXIS_NAMES[layout.axis]})</h2>
+          <h2>{t("Розташування на траверсі (уздовж {axis})", { axis: AXIS_NAMES[layout.axis] })}</h2>
           <table className="sheet-table narrow">
             <thead>
               <tr>
-                <th>Елемент</th>
-                <th>Від першого, мм</th>
-                <th>Від попереднього, мм</th>
+                <th>{t("Елемент")}</th>
+                <th>{t("Від першого, мм")}</th>
+                <th>{t("Від попереднього, мм")}</th>
               </tr>
             </thead>
             <tbody>
@@ -291,16 +291,16 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
         </>
       )}
 
-      <h2>Дроти</h2>
+      <h2>{t("Дроти")}</h2>
       <table className="sheet-table">
         <thead>
           <tr>
             <th>№</th>
-            <th>Початок (X; Y; Z), мм</th>
-            <th>Кінець (X; Y; Z), мм</th>
-            <th>Довжина, мм</th>
-            <th>Діаметр, мм</th>
-            <th>Сегм.</th>
+            <th>{t("Початок (X; Y; Z), мм")}</th>
+            <th>{t("Кінець (X; Y; Z), мм")}</th>
+            <th>{t("Довжина, мм")}</th>
+            <th>{t("Діаметр, мм")}</th>
+            <th>{t("Сегм.")}</th>
           </tr>
         </thead>
         <tbody>
@@ -311,22 +311,22 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
               <td>{[wire.x2, wire.y2, wire.z2].map(millimetres).join("; ")}</td>
               <td>{millimetres(Math.hypot(wire.x2 - wire.x1, wire.y2 - wire.y1, wire.z2 - wire.z1))}</td>
               <td>{millimetres(2 * wire.radius)}</td>
-              <td>{replaced.has(index) ? "Л" : (deck.segments[index] ?? "—")}</td>
+              <td>{replaced.has(index) ? t("Л") : (deck.segments[index] ?? "—")}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      {model.ground.kind !== "free" && model.height !== 0 && <p className="sheet-small">Координати Z уже містять додану висоту {model.height} м.</p>}
+      {model.ground.kind !== "free" && model.height !== 0 && <p className="sheet-small">{t("Координати Z уже містять додану висоту {height} м.", { height: model.height })}</p>}
 
-      <h2>Джерела{model.loads.length > 0 ? " і навантаження" : ""}</h2>
+      <h2>{model.loads.length > 0 ? t("Джерела і навантаження") : t("Джерела")}</h2>
       <table className="sheet-table narrow">
         <thead>
           <tr>
-            <th>Джерело</th>
-            <th>Місце</th>
-            <th>Фаза, °</th>
-            <th>Напруга, В</th>
-            {results && results.summary.ports.length > 1 && <th>Вхідний опір</th>}
+            <th>{t("Джерело")}</th>
+            <th>{t("Місце")}</th>
+            <th>{t("Фаза, °")}</th>
+            <th>{t("Напруга, В")}</th>
+            {results && results.summary.ports.length > 1 && <th>{t("Вхідний опір")}</th>}
           </tr>
         </thead>
         <tbody>
@@ -347,10 +347,10 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
         <table className="sheet-table narrow">
           <thead>
             <tr>
-              <th>Навантаження</th>
-              <th>Місце</th>
-              <th>Значення</th>
-              <th>На частоті моделі</th>
+              <th>{t("Навантаження")}</th>
+              <th>{t("Місце")}</th>
+              <th>{t("Значення")}</th>
+              <th>{t("На частоті моделі")}</th>
             </tr>
           </thead>
           <tbody>
@@ -363,8 +363,15 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
                   <td>{formatPulse(load.at)}</td>
                   <td>
                     {load.kind === "lc"
-                      ? [load.inductance > 0 && `L = ${load.inductance} мкГн`, load.capacitance > 0 && `C = ${load.capacitance} пФ`, `Q = ${load.q || "без втрат"}`, trap && `резонанс ${trap.toFixed(3)} МГц`].filter(Boolean).join(", ")
-                      : `R = ${load.resistance} Ом, X = ${load.reactance} Ом`}
+                      ? [
+                          load.inductance > 0 && t("L = {value} мкГн", { value: load.inductance }),
+                          load.capacitance > 0 && t("C = {value} пФ", { value: load.capacitance }),
+                          t("Q = {value}", { value: load.q || t("без втрат") }),
+                          trap && t("резонанс {frequency} МГц", { frequency: trap.toFixed(3) }),
+                        ]
+                          .filter(Boolean)
+                          .join(", ")
+                      : t("R = {r} Ом, X = {x} Ом", { r: load.resistance, x: load.reactance })}
                   </td>
                   <td>{z ? impedance(z) : "—"}</td>
                 </tr>
@@ -376,16 +383,16 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
 
       {results && (
         <section className="sheet-break">
-          <h2>Діаграми спрямованості</h2>
+          <h2>{t("Діаграми спрямованості")}</h2>
           <div className="sheet-plots">
             <figure>
-              <figcaption>Горизонтальна, кут {fixed(results.summary.cutElevation, 0)}°</figcaption>
-              <PolarPlot title="Горизонтальна діаграма" cut={results.summary.azimuthCut} max={ring} labels={["X", "Y", "−X", "−Y"]} />
+              <figcaption>{t("Горизонтальна, кут {angle}°", { angle: fixed(results.summary.cutElevation, 0) })}</figcaption>
+              <PolarPlot title={t("Горизонтальна діаграма")} cut={results.summary.azimuthCut} max={ring} labels={["X", "Y", "−X", "−Y"]} />
             </figure>
             <figure>
-              <figcaption>Вертикальна, азимут {fixed(results.summary.azimuth, 0)}°</figcaption>
+              <figcaption>{t("Вертикальна, азимут {angle}°", { angle: fixed(results.summary.azimuth, 0) })}</figcaption>
               <PolarPlot
-                title="Вертикальна діаграма"
+                title={t("Вертикальна діаграма")}
                 cut={results.summary.elevationCut}
                 max={ring}
                 labels={["0°", "90°", "180°", "−90°"]}
@@ -393,27 +400,33 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
               />
             </figure>
           </div>
-          <p className="sheet-small">Зовнішнє коло — {ring} дБі; кола проведено через 3, 10, 20 і 30 дБ нижче.</p>
+          <p className="sheet-small">{t("Зовнішнє коло — {ring} дБі; кола проведено через 3, 10, 20 і 30 дБ нижче.", { ring })}</p>
         </section>
       )}
 
       {sweep && sweep.points.length > 1 && (
         <section className="sheet-break">
-          <h2>Розгортка за частотою{sweep.source ? ` (джерело ${sweep.source})` : ""}</h2>
+          <h2>
+            {t("Розгортка за частотою")}
+            {sweep.source ? t(" (джерело {place})", { place: sweep.source }) : ""}
+          </h2>
           <p>
             {(() => {
               const found = bands(sweep.points, 2);
               return found.length === 0
-                ? "КСХ ніде не опускається до 2."
-                : `Смуги за КСХ ≤ 2: ${found.map(({ edges }) => `${edges[0].toFixed(3)} – ${edges[1].toFixed(3)} МГц`).join("; ")}.`;
+                ? t("КСХ ніде не опускається до {limit}.", { limit: 2 })
+                : t("Смуги за КСХ ≤ {limit}: {bands}.", {
+                    limit: 2,
+                    bands: found.map(({ edges }) => t("{low} – {high} МГц", { low: edges[0].toFixed(3), high: edges[1].toFixed(3) })).join("; "),
+                  });
             })()}
           </p>
           <figure className="sheet-chart">
-            <figcaption>КСХ ({sweep.reference} Ом)</figcaption>
+            <figcaption>{t("КСХ ({reference} Ом)", { reference: sweep.reference })}</figcaption>
             <LineChart
-              title="КСХ"
+              title={t("КСХ")}
               x={sweep.points.map((point) => point.frequency)}
-              series={[{ name: "КСХ", values: sweep.points.map((point) => point.swr), tone: "a" }]}
+              series={[{ name: t("КСХ"), values: sweep.points.map((point) => point.swr), tone: "a" }]}
               range={[1, Math.min(10, Math.max(3, Math.ceil(Math.max(...sweep.points.map((point) => point.swr)))))]}
               guides={[1.5, 2]}
               marker={sweep.frequency}
@@ -421,9 +434,9 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
             />
           </figure>
           <figure className="sheet-chart">
-            <figcaption>Вхідний опір, Ом</figcaption>
+            <figcaption>{t("Вхідний опір, Ом")}</figcaption>
             <LineChart
-              title="Вхідний опір"
+              title={t("Вхідний опір")}
               x={sweep.points.map((point) => point.frequency)}
               series={[
                 { name: "R", values: sweep.points.map((point) => point.impedance[0]), tone: "a" },
@@ -435,11 +448,11 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
           </figure>
           {sweep.points.every((point) => point.gain !== null) && (
             <figure className="sheet-chart">
-              <figcaption>Підсилення в напрямку максимуму, дБі</figcaption>
+              <figcaption>{t("Підсилення в напрямку максимуму, дБі")}</figcaption>
               <LineChart
-                title="Підсилення"
+                title={t("Підсилення")}
                 x={sweep.points.map((point) => point.frequency)}
-                series={[{ name: "підсилення", values: sweep.points.map((point) => point.gain!), tone: "a" }]}
+                series={[{ name: t("підсилення"), values: sweep.points.map((point) => point.gain!), tone: "a" }]}
                 range={rangeOf(sweep.points.map((point) => point.gain!), GAIN_SPAN)}
                 marker={sweep.frequency}
                 format={(value) => value.toFixed(2)}
@@ -448,11 +461,11 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
           )}
           {sweep.points.every((point) => point.frontToBack !== null) && (
             <figure className="sheet-chart">
-              <figcaption>Фронт/тил, дБ</figcaption>
+              <figcaption>{t("Фронт/тил, дБ")}</figcaption>
               <LineChart
-                title="Фронт/тил"
+                title={t("Фронт/тил")}
                 x={sweep.points.map((point) => point.frequency)}
-                series={[{ name: "фронт/тил", values: sweep.points.map((point) => point.frontToBack!), tone: "b" }]}
+                series={[{ name: t("фронт/тил"), values: sweep.points.map((point) => point.frontToBack!), tone: "b" }]}
                 range={rangeOf(sweep.points.map((point) => point.frontToBack!), RATIO_SPAN)}
                 marker={sweep.frequency}
                 format={(value) => value.toFixed(1)}
@@ -466,27 +479,29 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
 
       {(deck.warnings.length > 0 || deck.equivalents.length > 0 || (results && results.warnings.length > 0)) && (
         <>
-          <h2>Примітки</h2>
+          <h2>{t("Примітки")}</h2>
           <ul className="sheet-notes">
             {deck.equivalents.map((one) => (
               <li key={one.wires.join(" ")}>
-                Поправка Лісона: дроти {span(one.wires)} (Л) ядро рахує як один рівний дріт {millimetres(one.length)} мм, Ø{" "}
-                {(2000 * one.radius).toFixed(2)} мм, з тим самим центром і віссю.
+                {t("Поправка Лісона: дроти {wires} (Л) ядро рахує як один рівний дріт {length} мм, Ø {diameter} мм, з тим самим центром і віссю.", {
+                  wires: span(one.wires),
+                  length: millimetres(one.length),
+                  diameter: (2000 * one.radius).toFixed(2),
+                })}
               </li>
             ))}
             {deck.warnings.map((warning) => (
               <li key={warning}>{warning}</li>
             ))}
             {results?.warnings.map((warning) => (
-              <li key={warning}>Ядро: {warning}</li>
+              <li key={warning}>{t("Ядро: {warning}", { warning })}</li>
             ))}
           </ul>
         </>
       )}
 
       <footer className="sheet-foot">
-        Розраховано програмою antenna-modeler (github.com/CyberDev-space/antenna-modeler) на ядрі NEC-2 nec2-rs методом моментів. Розміри — для
-        тонких дротів без ізоляції; перед виготовленням перевірте модель на власній конструкції.
+        {t("Розраховано програмою antenna-modeler (github.com/CyberDev-space/antenna-modeler) на ядрі NEC-2 nec2-rs методом моментів. Розміри — для тонких дротів без ізоляції; перед виготовленням перевірте модель на власній конструкції.")}
       </footer>
     </article>
   );
@@ -503,9 +518,9 @@ function SheetMatching({ results, matching }: { results: SheetResults; matching:
   );
   return (
     <section>
-      <h2>Узгодження з лінією {reference} Ом</h2>
+      <h2>{t("Узгодження з лінією {reference} Ом", { reference })}</h2>
       <p>
-        Вхідний опір {ohms(load)} на {frequency} МГц, КСХ {swr(load, reference).toFixed(2)}.
+        {t("Вхідний опір {impedance} на {frequency} МГц, КСХ {swr}.", { impedance: ohms(load), frequency, swr: swr(load, reference).toFixed(2) })}
       </p>
       {networks.length > 0 && (
         <div className="sheet-matching">
@@ -513,15 +528,31 @@ function SheetMatching({ results, matching }: { results: SheetResults; matching:
             <figure key={k}>
               <Schematic network={network} />
               <figcaption>
-                L-ланка, варіант {k + 1}:{" "}
-                {[
-                  network.series && `послідовно ${partName(network.series)} ${value(network.series)} (${reactance(network.series.reactance)})`,
-                  network.shunt &&
-                    `паралельно з боку ${network.shuntAt === "line" ? "лінії" : "антени"} ${partName(network.shunt)} ${value(network.shunt)} (${reactance(network.shunt.reactance)})`,
-                ]
-                  .filter(Boolean)
-                  .join("; ")}
-                .
+                {t("L-ланка, варіант {n}: {parts}.", {
+                  n: k + 1,
+                  parts: [
+                    network.series &&
+                      t("послідовно {part} {value} ({reactance})", {
+                        part: partName(network.series),
+                        value: value(network.series),
+                        reactance: reactance(network.series.reactance),
+                      }),
+                    network.shunt &&
+                      (network.shuntAt === "line"
+                        ? t("паралельно з боку лінії {part} {value} ({reactance})", {
+                            part: partName(network.shunt),
+                            value: value(network.shunt),
+                            reactance: reactance(network.shunt.reactance),
+                          })
+                        : t("паралельно з боку антени {part} {value} ({reactance})", {
+                            part: partName(network.shunt),
+                            value: value(network.shunt),
+                            reactance: reactance(network.shunt.reactance),
+                          })),
+                  ]
+                    .filter(Boolean)
+                    .join("; "),
+                })}
               </figcaption>
             </figure>
           ))}
@@ -529,15 +560,27 @@ function SheetMatching({ results, matching }: { results: SheetResults; matching:
       )}
       {pin && (
         <p>
-          <strong>Шпилька:</strong> вкоротити активний вібратор до реактивності {reactance(pin.antennaReactance)}; шпилька з двох трубок Ø{" "}
-          {matching.diameter} мм на відстані {matching.spacing} мм між осями, хвильовий опір {pin.lineImpedance.toFixed(0)} Ом, довжина{" "}
-          {(pin.length * 1000).toFixed(0)} мм від точки живлення до перемички ({(pin.inductance * 1e6).toPrecision(3)} мкГн).
+          <strong>{t("Шпилька:")}</strong>{" "}
+          {t("вкоротити активний вібратор до реактивності {target}; шпилька з двох трубок Ø {diameter} мм на відстані {spacing} мм між осями, хвильовий опір {impedance} Ом, довжина {length} мм від точки живлення до перемички ({inductance} мкГн).", {
+            target: reactance(pin.antennaReactance),
+            diameter: matching.diameter,
+            spacing: matching.spacing,
+            impedance: pin.lineImpedance.toFixed(0),
+            length: (pin.length * 1000).toFixed(0),
+            inductance: (pin.inductance * 1e6).toPrecision(3),
+          })}
         </p>
       )}
       {matching.velocity > 0 && matching.velocity <= 1 && (
         <p>
-          <strong>Чвертьхвильовий трансформатор:</strong> найкраще — {best.name} ({best.line} Ом), КСХ {best.swr.toFixed(2)}; довжина{" "}
-          {(quarterWave(frequency, matching.velocity) * 1000).toFixed(0)} мм при коефіцієнті укорочення {matching.velocity}.
+          <strong>{t("Чвертьхвильовий трансформатор:")}</strong>{" "}
+          {t("найкраще — {cable} ({impedance} Ом), КСХ {swr}; довжина {length} мм при коефіцієнті укорочення {velocity}.", {
+            cable: t(best.name),
+            impedance: best.line,
+            swr: best.swr.toFixed(2),
+            length: (quarterWave(frequency, matching.velocity) * 1000).toFixed(0),
+            velocity: matching.velocity,
+          })}
         </p>
       )}
     </section>

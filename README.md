@@ -23,7 +23,9 @@ The program itself is in development. This works now:
 - **Leeson's correction for tubes of several diameters.** NEC-2 computes the steps between tubes of different diameters poorly, and the elements of a Yagi of telescoping tubes come out electrically long. Every straight element that is symmetric about its centre, fed at its centre or not at all, without loads or other wires on it, and between 0.4 and 0.6 wavelengths long, goes to the engine as the equivalent cylinder of D. B. Leeson ("Physical Design of Yagi Antennas", ARRL 1992), the method behind the stepped-diameter correction of EZNEC: one uniform wire that resonates at the same frequency and whose reactance changes with frequency at the same slope. The model, the drawing and the sheet keep the real tubes, and a warning says why an element was left as it is. The tapered 4-element Yagi for 20 m of the library of MMANA goes from 27.1 + j15.3 to 25.3 + j3.7 ohms with it, and its front-to-back ratio from 16.3 to 19.9 dB. The code reproduces the worked examples of the book; how it was written is told in [PROVENANCE.md](PROVENANCE.md).
 - **Checks before the engine runs.** A model that cannot be computed gets a message in plain words: a wire on the ground or under it, a source beyond the end of its wire, two sources in one segment, which NEC-2 would quietly merge. A model that NEC-2 computes with less accuracy gets a warning: segments that are too long, or too short for their radius, a wire that touches a real ground.
 
-Not there yet: a link that holds a model. The interface is in Ukrainian.
+Not there yet: a link that holds a model.
+
+The interface, its messages, the help and the sheet are in Ukrainian and in English. The page starts in Ukrainian for a browser set to Ukrainian and in English for any other, and a switch in the top bar changes it; the browser remembers the choice.
 
 ### What a file of MMANA loses
 

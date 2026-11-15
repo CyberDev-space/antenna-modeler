@@ -1,6 +1,7 @@
 import type { Source } from "../model";
 import { NumberField } from "./NumberField";
 import { PulseField } from "./PulseField";
+import { t } from "../i18n";
 
 interface Props {
   sources: Source[];
@@ -17,18 +18,18 @@ export function SourceTable({ sources, onChange }: Props) {
       {sources.map((source, index) => (
         <div className="load" key={index}>
           <span className="index">{index + 1}</span>
-          <PulseField label="Місце" value={source.at} onChange={(at) => replace(index, { ...source, at })} />
+          <PulseField label={t("Місце")} value={source.at} onChange={(at) => replace(index, { ...source, at })} />
           <NumberField
-            label="Фаза, °"
+            label={t("Фаза, °")}
             help="sourcePhase"
             value={source.phase}
             onChange={(phase) => replace(index, { ...source, phase })}
           />
-          <NumberField label="Напруга, В" help="sourceVoltage" value={source.voltage} onChange={(voltage) => replace(index, { ...source, voltage })} />
+          <NumberField label={t("Напруга, В")} help="sourceVoltage" value={source.voltage} onChange={(voltage) => replace(index, { ...source, voltage })} />
           <button
             type="button"
             className="quiet remove"
-            aria-label={`Вилучити джерело ${index + 1}`}
+            aria-label={t("Вилучити джерело {n}", { n: index + 1 })}
             disabled={sources.length === 1}
             onClick={() => onChange(sources.filter((_, i) => i !== index))}
           >
@@ -37,7 +38,7 @@ export function SourceTable({ sources, onChange }: Props) {
         </div>
       ))}
       <button type="button" onClick={add}>
-        Додати джерело
+        {t("Додати джерело")}
       </button>
     </div>
   );

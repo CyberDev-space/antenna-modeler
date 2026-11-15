@@ -4,6 +4,7 @@ import { ALUMINIUM, COPPER, type GroundKind, type Model } from "../model";
 import { taperedElements } from "../taper";
 import { Hint } from "./Help";
 import { NumberField } from "./NumberField";
+import { N, t } from "../i18n";
 
 interface Props {
   model: Model;
@@ -13,16 +14,16 @@ interface Props {
 }
 
 const GROUNDS: [GroundKind, string][] = [
-  ["free", "Вільний простір"],
-  ["perfect", "Ідеальна"],
-  ["real", "Реальна"],
+  ["free", N("Вільний простір")],
+  ["perfect", N("Ідеальна")],
+  ["real", N("Реальна")],
 ];
 
 /** The materials that have a name; any other conductivity is the user's own. */
 const MATERIALS: [conductivity: number, name: string][] = [
-  [0, "Без втрат"],
-  [COPPER, "Мідь"],
-  [ALUMINIUM, "Алюміній"],
+  [0, N("Без втрат")],
+  [COPPER, N("Мідь")],
+  [ALUMINIUM, N("Алюміній")],
 ];
 
 /** Megasiemens per metre without the noise of binary fractions, and back. */
@@ -39,11 +40,11 @@ export function Settings({ model, onChange, equivalents }: Props) {
 
   return (
     <div className="settings">
-      <NumberField label="Частота, МГц" help="frequency" value={model.frequency} onChange={(frequency) => onChange({ ...model, frequency })} />
-      <NumberField label="Лінія, Ом" help="reference" value={model.reference} onChange={(reference) => onChange({ ...model, reference })} />
+      <NumberField label={t("Частота, МГц")} help="frequency" value={model.frequency} onChange={(frequency) => onChange({ ...model, frequency })} />
+      <NumberField label={t("Лінія, Ом")} help="reference" value={model.reference} onChange={(reference) => onChange({ ...model, reference })} />
       <label className="field">
         <span>
-          <Hint topic="material">Матеріал дротів</Hint>
+          <Hint topic="material">{t("Матеріал дротів")}</Hint>
         </span>
         <select
           value={own ? "own" : String(model.wireConductivity)}
@@ -55,15 +56,15 @@ export function Settings({ model, onChange, equivalents }: Props) {
         >
           {MATERIALS.map(([conductivity, name]) => (
             <option key={name} value={String(conductivity)}>
-              {name}
+              {t(name)}
             </option>
           ))}
-          <option value="own">Своя провідність</option>
+          <option value="own">{t("Своя провідність")}</option>
         </select>
       </label>
       {own && (
         <NumberField
-          label="Провідність, МСм/м"
+          label={t("Провідність, МСм/м")}
           help="ownConductivity"
           value={toMega(model.wireConductivity)}
           onChange={(value) => {
@@ -77,13 +78,17 @@ export function Settings({ model, onChange, equivalents }: Props) {
         <div className="taper-correction">
           <label className="toggle">
             <input type="checkbox" checked={model.taperCorrection} onChange={(event) => onChange({ ...model, taperCorrection: event.target.checked })} />
-            <Hint topic="taperCorrection">Поправка Лісона для труб різного діаметра</Hint>
+            <Hint topic="taperCorrection">{t("Поправка Лісона для труб різного діаметра")}</Hint>
           </label>
           {model.taperCorrection && equivalents.length > 0 && (
             <ul>
               {equivalents.map((one) => (
                 <li key={one.wires.join(" ")}>
-                  Дроти {span(one.wires)}: рівний дріт {one.length.toFixed(3)} м, Ø {(2000 * one.radius).toFixed(2)} мм
+                  {t("Дроти {wires}: рівний дріт {length} м, Ø {diameter} мм", {
+                    wires: span(one.wires),
+                    length: one.length.toFixed(3),
+                    diameter: (2000 * one.radius).toFixed(2),
+                  })}
                 </li>
               ))}
             </ul>
@@ -93,7 +98,7 @@ export function Settings({ model, onChange, equivalents }: Props) {
 
       <fieldset>
         <legend>
-          <Hint topic="ground">Земля</Hint>
+          <Hint topic="ground">{t("Земля")}</Hint>
         </legend>
         <div className="choices">
           {GROUNDS.map(([kind, name]) => (
@@ -104,14 +109,14 @@ export function Settings({ model, onChange, equivalents }: Props) {
                 checked={model.ground.kind === kind}
                 onChange={() => onChange({ ...model, ground: { ...model.ground, kind } })}
               />
-              {name}
+              {t(name)}
             </label>
           ))}
         </div>
         {model.ground.kind !== "free" && (
           <div className="ground-values">
             <NumberField
-              label="Додати висоту, м"
+              label={t("Додати висоту, м")}
               help="height"
               value={model.height}
               onChange={(height) => onChange({ ...model, height })}
@@ -119,13 +124,13 @@ export function Settings({ model, onChange, equivalents }: Props) {
             {model.ground.kind === "real" && (
               <>
                 <NumberField
-                  label="Проникність ε"
+                  label={t("Проникність ε")}
                   help="permittivity"
                   value={model.ground.permittivity}
                   onChange={(permittivity) => onChange({ ...model, ground: { ...model.ground, permittivity } })}
                 />
                 <NumberField
-                  label="Провідність, См/м"
+                  label={t("Провідність, См/м")}
                   help="groundConductivity"
                   value={model.ground.conductivity}
                   onChange={(conductivity) => onChange({ ...model, ground: { ...model.ground, conductivity } })}

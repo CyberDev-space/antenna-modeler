@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { t } from "../i18n";
 
 interface Props {
   title: ReactNode;
@@ -33,8 +34,8 @@ export function Card({ title, actions, className, children }: Props) {
             type="button"
             className="quiet icon"
             aria-pressed={expanded}
-            aria-label={expanded ? "Згорнути" : "Розгорнути на всю область"}
-            title={expanded ? "Згорнути (Esc)" : "Розгорнути на всю область"}
+            aria-label={expanded ? t("Згорнути") : t("Розгорнути на всю область")}
+            title={expanded ? t("Згорнути (Esc)") : t("Розгорнути на всю область")}
             onClick={() => setExpanded(!expanded)}
           >
             {expanded ? "↙" : "↗"}

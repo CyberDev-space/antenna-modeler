@@ -9,6 +9,7 @@ import { Card } from "./Card";
 import { Hint } from "./Help";
 import { LineChart, rangeOf } from "./LineChart";
 import { NumberField } from "./NumberField";
+import { t } from "../i18n";
 
 interface Props {
   model: Model;
@@ -45,17 +46,17 @@ const megahertz = (value: number): string => value.toFixed(3);
 /** One band in words. An edge at an end of the sweep means that the band goes on beyond it. */
 function rangeText({ edges, open }: Range): string {
   const [low, high] = edges.map(megahertz);
-  if (open[0]) return `від початку розгортки до ${high} МГц`;
-  if (open[1]) return `від ${low} МГц до кінця розгортки`;
-  return `${low} – ${high} МГц (${Math.round((edges[1] - edges[0]) * 1000)} кГц)`;
+  if (open[0]) return t("від початку розгортки до {high} МГц", { high });
+  if (open[1]) return t("від {low} МГц до кінця розгортки", { low });
+  return t("{low} – {high} МГц ({width} кГц)", { low, high, width: Math.round((edges[1] - edges[0]) * 1000) });
 }
 
 /** The bands in words: an antenna for several bands has several. */
 function bandsText(ranges: Range[]): string {
-  if (ranges.length === 0) return `КСХ ніде не опускається до ${LIMIT}.`;
-  if (ranges.length === 1 && ranges[0].open[0] && ranges[0].open[1]) return `КСХ не перевищує ${LIMIT} в усій розгортці.`;
-  const label = ranges.length === 1 ? "Смуга" : "Смуги";
-  return `${label} за КСХ ≤ ${LIMIT}: ${ranges.map(rangeText).join("; ")}.`;
+  if (ranges.length === 0) return t("КСХ ніде не опускається до {limit}.", { limit: LIMIT });
+  if (ranges.length === 1 && ranges[0].open[0] && ranges[0].open[1]) return t("КСХ не перевищує {limit} в усій розгортці.", { limit: LIMIT });
+  const list = ranges.map(rangeText).join("; ");
+  return ranges.length === 1 ? t("Смуга за КСХ ≤ {limit}: {bands}.", { limit: LIMIT, bands: list }) : t("Смуги за КСХ ≤ {limit}: {bands}.", { limit: LIMIT, bands: list });
 }
 
 /** The sweep over frequency: its range, and charts of the SWR and of the impedance. */
@@ -79,14 +80,14 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
       const mainDeck = buildDeck(model);
       const main = await solve(mainDeck.text);
       if (main.error) {
-        setFailure({ model: modelText, lines: ["Ядро зупинило розрахунок:", main.error] });
+        setFailure({ model: modelText, lines: [t("Ядро зупинило розрахунок:"), main.error] });
         setSwept(null);
         return;
       }
       const { azimuth, elevation } = summarize(main.jobs[0].solutions[0], model.reference, mainDeck.feeds);
       const output = await solve(buildSweepDeck(model, { theta: 90 - elevation, phi: azimuth }).text);
       if (output.error) {
-        setFailure({ model: modelText, lines: ["Ядро зупинило розрахунок:", output.error] });
+        setFailure({ model: modelText, lines: [t("Ядро зупинило розрахунок:"), output.error] });
         setSwept(null);
         return;
       }
@@ -104,7 +105,7 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
     } catch (error) {
       // A stopped sweep leaves the charts of the one before.
       if (error instanceof Stopped) return;
-      setFailure({ model: modelText, lines: ["Розрахунок не вдався:", String(error)] });
+      setFailure({ model: modelText, lines: [t("Розрахунок не вдався:"), String(error)] });
       setSwept(null);
     } finally {
       setRunning(false);
@@ -136,39 +137,42 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
   const spread = (values: number[]): string => `${Math.min(...values).toFixed(1)}–${Math.max(...values).toFixed(1)}`.replace(/-(?=\d)/g, "−");
   const overBand =
     withGain && inBand.length > 0
-      ? ` У цій смузі підсилення ${spread(inBand.map((point) => point.gain!))} дБі${
-          withRatio ? `, фронт/тил ${spread(inBand.map((point) => point.frontToBack!))} дБ` : ""
-        }.`
+      ? withRatio
+        ? t(" У цій смузі підсилення {gain} дБі, фронт/тил {ratio} дБ.", {
+            gain: spread(inBand.map((point) => point.gain!)),
+            ratio: spread(inBand.map((point) => point.frontToBack!)),
+          })
+        : t(" У цій смузі підсилення {gain} дБі.", { gain: spread(inBand.map((point) => point.gain!)) })
       : "";
   const top = swept ? Math.min(10, Math.max(3, Math.ceil(Math.max(...points.map((point) => point.swr))))) : 3;
 
   return (
     <div className="sweep" aria-live="polite">
       <div className="settings sweep-controls">
-        <NumberField label="Від, МГц" help="sweepRange" value={model.sweep.from} onChange={(from) => setSweep({ from })} />
-        <NumberField label="До, МГц" help="sweepRange" value={model.sweep.to} onChange={(to) => setSweep({ to })} />
-        <NumberField label="Точок" help="sweepRange" value={model.sweep.points} onChange={(points) => setSweep({ points: Math.round(points) })} />
+        <NumberField label={t("Від, МГц")} help="sweepRange" value={model.sweep.from} onChange={(from) => setSweep({ from })} />
+        <NumberField label={t("До, МГц")} help="sweepRange" value={model.sweep.to} onChange={(to) => setSweep({ to })} />
+        <NumberField label={t("Точок")} help="sweepRange" value={model.sweep.points} onChange={(points) => setSweep({ points: Math.round(points) })} />
         <Hint topic="sweepRun">
           {running ? (
             <button type="button" className="primary" onClick={stopEngine}>
-              Зупинити
+              {t("Зупинити")}
             </button>
           ) : (
             <button type="button" className="primary" onClick={sweep} disabled={deck.errors.length > 0}>
-              Розгорнути
+              {t("Розгорнути")}
             </button>
           )}
         </Hint>
         {swept && swept.sources.length > 1 && (
           <label className="field">
             <span>
-              <Hint topic="sweepSource">Джерело на графіках</Hint>
+              <Hint topic="sweepSource">{t("Джерело на графіках")}</Hint>
             </span>
             <select value={which} onChange={(event) => setChosen(Number(event.target.value))}>
               {swept.sources.map((place, index) => (
                 <option key={index} value={index} disabled={!swept.driven[index]}>
                   {index + 1}: {place}
-                  {swept.driven[index] ? "" : " (без напруги)"}
+                  {swept.driven[index] ? "" : t(" (без напруги)")}
                 </option>
               ))}
             </select>
@@ -182,31 +186,31 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
           ))}
         </ul>
       )}
-      {!swept && !problems && <p className="note">Задайте межі й натисніть «Розгорнути»: програма порахує КСХ і вхідний опір на кожній частоті.</p>}
+      {!swept && !problems && <p className="note">{t("Задайте межі й натисніть «Розгорнути»: програма порахує КСХ і вхідний опір на кожній частоті.")}</p>}
       {swept && found && (
         <div className={stale ? "sweep-result stale" : "sweep-result"}>
-          {stale && <p className="note">Модель змінено: ці графіки належать попередній.</p>}
+          {stale && <p className="note">{t("Модель змінено: ці графіки належать попередній.")}</p>}
           <p className="band">
             <Hint topic="sweepBand">
-              Найменший КСХ {found.swr.toFixed(2)} на {megahertz(found.best)} МГц. {bandsText(bands(points, LIMIT))}
+              {t("Найменший КСХ {swr} на {frequency} МГц.", { swr: found.swr.toFixed(2), frequency: megahertz(found.best) })} {bandsText(bands(points, LIMIT))}
               {overBand}
             </Hint>
           </p>
           <div className={withGain ? "charts four" : "charts"}>
-            <Card title={`КСХ (${swept.reference} Ом)`}>
+            <Card title={t("КСХ ({reference} Ом)", { reference: swept.reference })}>
             <LineChart
-              title={`КСХ (${swept.reference} Ом)`}
+              title={t("КСХ ({reference} Ом)", { reference: swept.reference })}
               x={frequencies}
-              series={[{ name: "КСХ", values: points.map((point) => point.swr), tone: "a" }]}
+              series={[{ name: t("КСХ"), values: points.map((point) => point.swr), tone: "a" }]}
               range={[1, top]}
               guides={[1.5, 2]}
               marker={swept.frequency}
               format={(value) => (Number.isFinite(value) ? value.toFixed(2) : "∞")}
             />
             </Card>
-            <Card title="Вхідний опір, Ом">
+            <Card title={t("Вхідний опір, Ом")}>
             <LineChart
-              title="Вхідний опір, Ом"
+              title={t("Вхідний опір, Ом")}
               x={frequencies}
               series={[
                 { name: "R", values: points.map((point) => point.impedance[0]), tone: "a" },
@@ -217,11 +221,11 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
             />
             </Card>
             {withGain && (
-              <Card title={<Hint topic="sweepGain">Підсилення, дБі</Hint>}>
+              <Card title={<Hint topic="sweepGain">{t("Підсилення, дБі")}</Hint>}>
                 <LineChart
-                  title="Підсилення, дБі"
+                  title={t("Підсилення, дБі")}
                   x={frequencies}
-                  series={[{ name: "підсилення", values: gains as number[], tone: "a" }]}
+                  series={[{ name: t("підсилення"), values: gains as number[], tone: "a" }]}
                   range={rangeOf(gains as number[], GAIN_SPAN)}
                   marker={swept.frequency}
                   format={(value) => value.toFixed(2).replace("-", "−")}
@@ -229,11 +233,11 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
               </Card>
             )}
             {withRatio && (
-              <Card title={<Hint topic="sweepFrontToBack">Фронт/тил, дБ</Hint>}>
+              <Card title={<Hint topic="sweepFrontToBack">{t("Фронт/тил, дБ")}</Hint>}>
                 <LineChart
-                  title="Фронт/тил, дБ"
+                  title={t("Фронт/тил, дБ")}
                   x={frequencies}
-                  series={[{ name: "фронт/тил", values: ratios as number[], tone: "b" }]}
+                  series={[{ name: t("фронт/тил"), values: ratios as number[], tone: "b" }]}
                   range={rangeOf(ratios as number[], RATIO_SPAN)}
                   marker={swept.frequency}
                   format={(value) => value.toFixed(1).replace("-", "−")}
@@ -242,9 +246,12 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
             )}
           </div>
           <p className="note">
-            {points.length} частот за {swept.milliseconds.toFixed(0)} мс. Вертикальна риска: частота моделі.
+            {t("{count} частот за {ms} мс. Вертикальна риска: частота моделі.", { count: points.length, ms: swept.milliseconds.toFixed(0) })}
             {withGain &&
-              ` Підсилення — у напрямку максимуму на частоті моделі (азимут ${swept.toward.azimuth.toFixed(0)}°, кут ${swept.toward.elevation.toFixed(1)}°), фронт/тил — проти протилежного азимуту на тому самому куті.`}
+              t(" Підсилення — у напрямку максимуму на частоті моделі (азимут {azimuth}°, кут {elevation}°), фронт/тил — проти протилежного азимуту на тому самому куті.", {
+                azimuth: swept.toward.azimuth.toFixed(0),
+                elevation: swept.toward.elevation.toFixed(1),
+              })}
           </p>
         </div>
       )}

@@ -2,6 +2,7 @@ import type { Equivalent } from "../deck";
 import type { Wire } from "../model";
 import { Hint } from "./Help";
 import { NumberField } from "./NumberField";
+import { t } from "../i18n";
 
 interface Props {
   wires: Wire[];
@@ -37,14 +38,14 @@ export function WireTable({ wires, segments, equivalents, onChange, onRemove }: 
             <th>№</th>
             {COORDINATES.map((name) => (
               <th key={name}>
-                <Hint topic="wireEnds">{name.toUpperCase()}, м</Hint>
+                <Hint topic="wireEnds">{t("{coordinate}, м", { coordinate: name.toUpperCase() })}</Hint>
               </th>
             ))}
             <th>
-              <Hint topic="wireRadius">R, мм</Hint>
+              <Hint topic="wireRadius">{t("R, мм")}</Hint>
             </th>
             <th>
-              <Hint topic="wireSegments">Сегм.</Hint>
+              <Hint topic="wireSegments">{t("Сегм.")}</Hint>
             </th>
             <th />
           </tr>
@@ -57,7 +58,7 @@ export function WireTable({ wires, segments, equivalents, onChange, onRemove }: 
                 <td key={name}>
                   <NumberField
                     hideLabel
-                    label={`Дріт ${index + 1}, ${name.toUpperCase()}`}
+                    label={t("Дріт {wire}, {coordinate}", { wire: index + 1, coordinate: name.toUpperCase() })}
                     value={wire[name]}
                     onChange={(value) => update(index, { [name]: value })}
                   />
@@ -66,7 +67,7 @@ export function WireTable({ wires, segments, equivalents, onChange, onRemove }: 
               <td>
                 <NumberField
                   hideLabel
-                  label={`Дріт ${index + 1}, радіус`}
+                  label={t("Дріт {wire}, радіус", { wire: index + 1 })}
                   value={millimetres(wire.radius)}
                   onChange={(value) => update(index, { radius: value / 1000 })}
                 />
@@ -74,13 +75,13 @@ export function WireTable({ wires, segments, equivalents, onChange, onRemove }: 
               <td className="segments">
                 <NumberField
                   hideLabel
-                  label={`Дріт ${index + 1}, сегменти`}
+                  label={t("Дріт {wire}, сегменти", { wire: index + 1 })}
                   value={wire.segments}
                   onChange={(value) => update(index, { segments: Math.round(value) })}
                 />
                 {replaced.has(index) ? (
                   <Hint topic="taperCorrection">
-                    <span className="auto">Л</span>
+                    <span className="auto">{t("Л")}</span>
                   </Hint>
                 ) : (
                   wire.segments <= 0 && segments[index] !== undefined && <span className="auto">{segments[index]}</span>
@@ -90,7 +91,7 @@ export function WireTable({ wires, segments, equivalents, onChange, onRemove }: 
                 <button
                   type="button"
                   className="quiet"
-                  aria-label={`Вилучити дріт ${index + 1}`}
+                  aria-label={t("Вилучити дріт {wire}", { wire: index + 1 })}
                   onClick={() => onRemove(index)}
                 >
                   ×
@@ -101,7 +102,7 @@ export function WireTable({ wires, segments, equivalents, onChange, onRemove }: 
         </tbody>
       </table>
       <button type="button" onClick={add}>
-        Додати дріт
+        {t("Додати дріт")}
       </button>
     </div>
   );

@@ -1,3 +1,4 @@
+import { N } from "./i18n";
 /** A straight wire. Coordinates and radius are in metres. */
 export interface Wire {
   x1: number;
@@ -108,7 +109,7 @@ export const ALUMINIUM = 3.5e7;
 
 /** A dipole for the 20 m band, 10 m above average ground, cut to resonance. */
 export const defaultModel: Model = {
-  name: "Диполь на 20 м",
+  name: N("Диполь на 20 м"),
   wires: [{ x1: 0, y1: -5.18, z1: 10, x2: 0, y2: 5.18, z2: 10, radius: 0.001, segments: -1 }],
   sources: [{ at: { wire: 0, place: "c" }, phase: 0, voltage: 1 }],
   loads: [],

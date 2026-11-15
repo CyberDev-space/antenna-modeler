@@ -3,6 +3,7 @@ import { hairpin, lNetworks, quarterWave, throughQuarterWave, type Impedance, ty
 import { Card } from "./Card";
 import { Hint } from "./Help";
 import { NumberField } from "./NumberField";
+import { N, t } from "../i18n";
 
 /** What the user chose for the hairpin and the transformer: millimetres, and the velocity factor of the cable. */
 export interface MatchingInputs {
@@ -30,28 +31,28 @@ interface Props {
 
 /** Cables for a quarter-wave transformer: one cable, or two of them in parallel. */
 export const CABLES: [impedance: number, name: string][] = [
-  [25, "два кабелі 50 Ом паралельно"],
-  [37.5, "два кабелі 75 Ом паралельно"],
-  [50, "кабель 50 Ом"],
-  [75, "кабель 75 Ом"],
-  [93, "кабель 93 Ом"],
+  [25, N("два кабелі 50 Ом паралельно")],
+  [37.5, N("два кабелі 75 Ом паралельно")],
+  [50, N("кабель 50 Ом")],
+  [75, N("кабель 75 Ом")],
+  [93, N("кабель 93 Ом")],
 ];
 
 const minus = (text: string): string => text.replace(/-/g, "−");
-export const ohms = ([r, x]: Impedance): string => `${r.toFixed(1)} ${x < 0 ? "−" : "+"} j${Math.abs(x).toFixed(1)} Ом`;
-export const reactance = (x: number): string => `${x < 0 ? "−" : "+"}j${Math.abs(x).toFixed(1)} Ом`;
+export const ohms = ([r, x]: Impedance): string => t("{r} {sign} j{x} Ом", { r: r.toFixed(1), sign: x < 0 ? "−" : "+", x: Math.abs(x).toFixed(1) });
+export const reactance = (x: number): string => t("{sign}j{x} Ом", { sign: x < 0 ? "−" : "+", x: Math.abs(x).toFixed(1) });
 
 /** The value of a coil or a capacitor in the units that a builder uses. */
 export function value(part: Part): string {
   if (part.kind === "coil") {
     const microhenries = part.value * 1e6;
-    return microhenries < 0.1 ? `${(microhenries * 1000).toPrecision(3)} нГн` : `${microhenries.toPrecision(3)} мкГн`;
+    return microhenries < 0.1 ? t("{value} нГн", { value: (microhenries * 1000).toPrecision(3) }) : t("{value} мкГн", { value: microhenries.toPrecision(3) });
   }
   const picofarads = part.value * 1e12;
-  return picofarads >= 10000 ? `${(picofarads / 1000).toPrecision(3)} нФ` : `${picofarads.toPrecision(3)} пФ`;
+  return picofarads >= 10000 ? t("{value} нФ", { value: (picofarads / 1000).toPrecision(3) }) : t("{value} пФ", { value: picofarads.toPrecision(3) });
 }
 
-export const partName = (part: Part): string => (part.kind === "coil" ? "котушка" : "конденсатор");
+export const partName = (part: Part): string => (part.kind === "coil" ? t("котушка") : t("конденсатор"));
 
 /** A coil or a capacitor drawn along a line from (x1, y1) to (x2, y2), horizontal or vertical. */
 function Element({ part, x1, y1, x2, y2 }: { part: Part | null; x1: number; y1: number; x2: number; y2: number }) {
@@ -103,7 +104,7 @@ export function Schematic({ network }: { network: LNetwork }) {
   const [top, bottom] = [26, 96];
   const shuntX = network.shuntAt === "line" ? 64 : 216;
   return (
-    <svg className="schematic" viewBox="0 0 280 112" role="img" aria-label="Схема L-ланки">
+    <svg className="schematic" viewBox="0 0 280 112" role="img" aria-label={t("Схема L-ланки")}>
       <line x1={20} y1={top} x2={110} y2={top} />
       <Element part={network.series} x1={110} y1={top} x2={170} y2={top} />
       <line x1={170} y1={top} x2={260} y2={top} />
@@ -112,10 +113,10 @@ export function Schematic({ network }: { network: LNetwork }) {
       {network.shunt && <circle className="node" cx={shuntX} cy={top} r={2.5} />}
       {[20, 260].flatMap((x) => [top, bottom].map((y) => <circle key={`${x} ${y}`} className="terminal" cx={x} cy={y} r={3.5} />))}
       <text x={20} y={bottom + 14} textAnchor="middle">
-        лінія
+        {t("лінія")}
       </text>
       <text x={260} y={bottom + 14} textAnchor="middle">
-        антена
+        {t("антена")}
       </text>
       {network.series && (
         <text x={140} y={top - 12} textAnchor="middle">
@@ -147,29 +148,43 @@ export function MatchingPanel({ impedance, frequency, reference, stale, source, 
   return (
     <div className="matching">
       <p className="band">
-        Антена{source ? ` (джерело ${source})` : ""}: {ohms(impedance)} на {frequency} МГц, лінія {reference} Ом, КСХ {swr(impedance, reference).toFixed(2)}.
+        {t("Антена{source}: {impedance} на {frequency} МГц, лінія {reference} Ом, КСХ {swr}.", {
+          source: source ? t(" (джерело {place})", { place: source }) : "",
+          impedance: ohms(impedance),
+          frequency,
+          reference,
+          swr: swr(impedance, reference).toFixed(2),
+        })}
       </p>
-      {stale && <p className="note">Модель змінено: опір належить попередній. Розрахуйте її знову.</p>}
+      {stale && <p className="note">{t("Модель змінено: опір належить попередній. Розрахуйте її знову.")}</p>}
       <div className={stale ? "matching-cards stale" : "matching-cards"}>
-        <Card title={<Hint topic="matchLNetwork">L-ланка</Hint>}>
+        <Card title={<Hint topic="matchLNetwork">{t("L-ланка")}</Hint>}>
           {networks.length === 0 ? (
-            <p className="note">Для цього опору L-ланки немає.</p>
+            <p className="note">{t("Для цього опору L-ланки немає.")}</p>
           ) : (
             <div className="networks">
               {networks.map((network, k) => (
                 <section key={k}>
-                  <h4>Варіант {k + 1}</h4>
+                  <h4>{t("Варіант {n}", { n: k + 1 })}</h4>
                   <Schematic network={network} />
                   <ul>
                     {network.series && (
                       <li>
-                        Послідовно: {partName(network.series)} {value(network.series)} ({reactance(network.series.reactance)})
+                        {t("Послідовно: {part} {value} ({reactance})", {
+                          part: partName(network.series),
+                          value: value(network.series),
+                          reactance: reactance(network.series.reactance),
+                        })}
                       </li>
                     )}
                     {network.shunt && (
                       <li>
-                        Паралельно з боку {network.shuntAt === "line" ? "лінії" : "антени"}: {partName(network.shunt)} {value(network.shunt)} (
-                        {reactance(network.shunt.reactance)})
+                        {(() => {
+                          const values = { part: partName(network.shunt), value: value(network.shunt), reactance: reactance(network.shunt.reactance) };
+                          return network.shuntAt === "line"
+                            ? t("Паралельно з боку лінії: {part} {value} ({reactance})", values)
+                            : t("Паралельно з боку антени: {part} {value} ({reactance})", values);
+                        })()}
                       </li>
                     )}
                   </ul>
@@ -179,57 +194,65 @@ export function MatchingPanel({ impedance, frequency, reference, stale, source, 
           )}
         </Card>
 
-        <Card title={<Hint topic="matchHairpin">Шпилька (бета-узгодження)</Hint>}>
+        <Card title={<Hint topic="matchHairpin">{t("Шпилька (бета-узгодження)")}</Hint>}>
           {pin ? (
             <>
               <p>
-                Вкоротіть активний вібратор, щоб його реактивність стала {reactance(pin.antennaReactance)} (зараз {reactance(x)}). Тоді шпилька
-                через точку живлення — індуктивність {(pin.inductance * 1e6).toPrecision(3)} мкГн ({reactance(pin.reactance)}).
+                {t("Вкоротіть активний вібратор, щоб його реактивність стала {target} (зараз {now}). Тоді шпилька через точку живлення — індуктивність {inductance} мкГн ({reactance}).", {
+                  target: reactance(pin.antennaReactance),
+                  now: reactance(x),
+                  inductance: (pin.inductance * 1e6).toPrecision(3),
+                  reactance: reactance(pin.reactance),
+                })}
               </p>
               <div className="settings">
-                <NumberField label="Діаметр трубок, мм" help="hairpinDiameter" value={diameter} onChange={setDiameter} />
-                <NumberField label="Відстань між осями, мм" help="hairpinSpacing" value={spacing} onChange={setSpacing} />
+                <NumberField label={t("Діаметр трубок, мм")} help="hairpinDiameter" value={diameter} onChange={setDiameter} />
+                <NumberField label={t("Відстань між осями, мм")} help="hairpinSpacing" value={spacing} onChange={setSpacing} />
               </div>
               <p>
-                З двох трубок Ø {diameter} мм на відстані {spacing} мм шпилька має хвильовий опір {pin.lineImpedance.toFixed(0)} Ом і довжину{" "}
-                <strong>{(pin.length * 1000).toFixed(0)} мм</strong> від точки живлення до перемички.
+                {t("З двох трубок Ø {diameter} мм на відстані {spacing} мм шпилька має хвильовий опір {impedance} Ом і довжину", {
+                  diameter,
+                  spacing,
+                  impedance: pin.lineImpedance.toFixed(0),
+                })}{" "}
+                <strong>{t("{length} мм", { length: (pin.length * 1000).toFixed(0) })}</strong> {t("від точки живлення до перемички.")}
               </p>
               <p className="note">
-                Вкоротити вібратор може оптимізатор: змінна — довжина активного вібратора, ціль — реактивність з цільовою X ={" "}
-                {pin.antennaReactance.toFixed(1).replace("-", "−")} Ом, решта ваг 0. Вкорочення трохи змінює й активний опір: після нього
-                перегляньте цю картку знову.
+                {t("Вкоротити вібратор може оптимізатор: змінна — довжина активного вібратора, ціль — реактивність з цільовою X = {target} Ом, решта ваг 0. Вкорочення трохи змінює й активний опір: після нього перегляньте цю картку знову.", {
+                  target: pin.antennaReactance.toFixed(1).replace("-", "−"),
+                })}
               </p>
             </>
           ) : spacing > diameter ? (
-            <p className="note">Шпилька узгоджує лише антену з активним опором, меншим за опір лінії ({reference} Ом).</p>
+            <p className="note">{t("Шпилька узгоджує лише антену з активним опором, меншим за опір лінії ({reference} Ом).", { reference })}</p>
           ) : (
             <>
               <div className="settings">
-                <NumberField label="Діаметр трубок, мм" help="hairpinDiameter" value={diameter} onChange={setDiameter} />
-                <NumberField label="Відстань між осями, мм" help="hairpinSpacing" value={spacing} onChange={setSpacing} />
+                <NumberField label={t("Діаметр трубок, мм")} help="hairpinDiameter" value={diameter} onChange={setDiameter} />
+                <NumberField label={t("Відстань між осями, мм")} help="hairpinSpacing" value={spacing} onChange={setSpacing} />
               </div>
-              <p className="note">Відстань між осями трубок має бути більшою за їхній діаметр.</p>
+              <p className="note">{t("Відстань між осями трубок має бути більшою за їхній діаметр.")}</p>
             </>
           )}
         </Card>
 
-        <Card title={<Hint topic="matchQuarterWave">Чвертьхвильовий трансформатор</Hint>}>
+        <Card title={<Hint topic="matchQuarterWave">{t("Чвертьхвильовий трансформатор")}</Hint>}>
           <p>
-            Ідеальний хвильовий опір відрізка — {ideal.toFixed(1)} Ом
-            {Math.abs(x) > 0.1 * r ? "; реактивність антени він не прибирає, тож КСХ лишиться трохи більшим." : "."}
+            {t("Ідеальний хвильовий опір відрізка — {ideal} Ом", { ideal: ideal.toFixed(1) })}
+            {Math.abs(x) > 0.1 * r ? t("; реактивність антени він не прибирає, тож КСХ лишиться трохи більшим.") : "."}
           </p>
           <table className="cables">
             <thead>
               <tr>
-                <th>Відрізок</th>
-                <th>Ом</th>
-                <th>КСХ</th>
+                <th>{t("Відрізок")}</th>
+                <th>{t("Ом")}</th>
+                <th>{t("КСХ")}</th>
               </tr>
             </thead>
             <tbody>
               {cables.map((cable) => (
                 <tr key={cable.line} className={cable === best ? "best" : undefined}>
-                  <td>{cable.name}</td>
+                  <td>{t(cable.name)}</td>
                   <td>{cable.line}</td>
                   <td>{Number.isFinite(cable.swr) ? cable.swr.toFixed(2) : "∞"}</td>
                 </tr>
@@ -237,15 +260,16 @@ export function MatchingPanel({ impedance, frequency, reference, stale, source, 
             </tbody>
           </table>
           <div className="settings">
-            <NumberField label="Коефіцієнт укорочення" help="velocityFactor" value={velocity} onChange={setVelocity} />
+            <NumberField label={t("Коефіцієнт укорочення")} help="velocityFactor" value={velocity} onChange={setVelocity} />
           </div>
           <p>
             {velocity > 0 && velocity <= 1 ? (
               <>
-                Довжина відрізка — <strong>{minus((quarterWave(frequency, velocity) * 1000).toFixed(0))} мм</strong>: чверть хвилі в кабелі.
+                {t("Довжина відрізка —")} <strong>{t("{length} мм", { length: minus((quarterWave(frequency, velocity) * 1000).toFixed(0)) })}</strong>
+                {t(": чверть хвилі в кабелі.")}
               </>
             ) : (
-              "Коефіцієнт укорочення має бути між 0 і 1."
+              t("Коефіцієнт укорочення має бути між 0 і 1.")
             )}
           </p>
         </Card>
