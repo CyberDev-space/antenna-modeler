@@ -1615,3 +1615,101 @@ body.sheet-preview .print-sheet {
     display: block;
   }
 }
+
+/* The window of templates. */
+dialog.templates {
+  width: min(46rem, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  padding: 18px 20px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 0.35);
+}
+
+dialog.templates::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+
+dialog.templates h2 {
+  margin: 0 0 10px;
+  font-size: 1.15rem;
+}
+
+.template-kinds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.4rem, 1fr));
+  gap: 8px;
+  padding: 0;
+  border: none;
+}
+
+.template-kinds legend {
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.template-kind {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 10px 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+  cursor: pointer;
+}
+
+.template-kind.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  color: var(--ink);
+}
+
+/* The radio button stays for the keyboard and screen readers; the card shows the choice. */
+.template-kind input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.template-kind:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.template-kind .sketch {
+  width: 64px;
+  height: 40px;
+}
+
+.template-kind.on .sketch {
+  color: var(--accent);
+}
+
+.template-description {
+  max-width: 70ch;
+  min-height: 2.9em;
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
+.template-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: end;
+  margin-top: 14px;
+}
+
+.template-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}

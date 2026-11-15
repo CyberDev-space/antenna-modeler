@@ -568,6 +568,12 @@ export function exportDeck(model: Model): Deck {
   return finish(base, [...lumped(model, base), ...request(model)]);
 }
 
+/** The deck for the input impedance at the frequency of the model alone: no pattern, no currents printed. */
+export function buildImpedanceDeck(model: Model): Deck {
+  const base = structure(model);
+  return finish(base, ["PT -1", ...loading(model, base, model.frequency), `FR 0 1 0 0 ${number(model.frequency)} 0`, "XQ 0"]);
+}
+
 /** A direction of the far field: theta from the zenith and phi from the X axis, in degrees. */
 export interface Direction {
   theta: number;

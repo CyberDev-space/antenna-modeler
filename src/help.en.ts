@@ -46,10 +46,84 @@ export const TOPICS_EN: Record<TopicKey, Topic> = {
     how: ["Coils and capacitors are written as such, so the deck is right at other frequencies too."],
     howTitle: "Good to know",
   },
-  example: {
-    title: "Example",
-    what: "Sets up the example: a dipole for 20 m, 10 m above average ground.",
-    affects: "The current model is lost if it has not been saved.",
+  templates: {
+    title: "Antenna templates",
+    what: "Ready antennas to start with: a dipole, an inverted V, a vertical with radials, a delta loop, a quad and a Yagi. You give the frequency and the height; the program builds the antenna and cuts it to resonance with the NEC-2 engine.",
+    how: [
+      "The cut takes the height and the ground into account: the antenna is resonant where it will hang.",
+      "The ground, the metal of the wires and the line stay from the current model; the wires, sources and loads are replaced.",
+      "The step can be undone: Ctrl+Z.",
+    ],
+    affects: "The current model is replaced by the new one; save it if you still need it.",
+  },
+  templateKind: {
+    title: "Antenna",
+    what: "Which antenna to build. Under the cards, a few words say what the antenna is.",
+    table: {
+      title: "At 14.15 MHz, 10 m above average ground, wire of 2 mm",
+      rows: [
+        ["Dipole", "73 Ω; 7.1 dBi at 30°, both ways"],
+        ["Inverted V", "63 Ω; 6.4 dBi at 33°"],
+        ["Vertical with radials", "48 Ω; 1 dBi at 14°, all round"],
+        ["Delta loop", "124 Ω; 5.2 dBi at 47°: for low angles it must hang higher"],
+        ["Quad", "one loop 128 Ω, 7.5 dBi; two and three loops 130 and 90 Ω, 11.1 and 11.9 dBi"],
+        ["Yagi", "38–58 Ω; from 10.7 dBi with 2 elements to 14.2 dBi with 6"],
+      ],
+    },
+  },
+  templateFrequency: {
+    title: "Frequency of the template",
+    what: "The frequency the antenna is designed for: there its driven element has no reactance.",
+    affects: "The dimensions of the antenna, the frequency of the model and the range of the sweep: ±4 % around it.",
+    defaults: "The frequency of the current model.",
+  },
+  templateHeight: {
+    title: "Height",
+    what: "The height above the ground of the point the antenna hangs from; the name of the field says which point.",
+    table: {
+      title: "Which point",
+      rows: [
+        ["Dipole", "the wire itself"],
+        ["Inverted V, delta loop", "the apex"],
+        ["Vertical", "the base, where the radials start"],
+        ["Quad, Yagi", "the boom"],
+      ],
+    },
+    how: [
+      "The height becomes the “Add height” of the model: the antenna can then be raised or lowered without touching the wires.",
+      "If the lowest point of the antenna would come close to the ground, the template says how high to hang it.",
+    ],
+    howTitle: "Good to know",
+    defaults: "10 m. In free space there is no field: the height changes nothing there.",
+  },
+  templateDiameter: {
+    title: "Wire diameter",
+    what: "The diameter of the wire or the tubes of the antenna, in millimetres.",
+    how: ["A thicker wire makes a dipole a little shorter and its band wider; the template takes it into account.", "For a Yagi of tubes on HF it is, for example, 20 mm."],
+    howTitle: "Good to know",
+    defaults: "2 mm.",
+  },
+  templateElements: {
+    title: "Elements",
+    what: "How many loops a quad has, or elements a Yagi: the reflector, the driven element and the directors.",
+    table: {
+      title: "In free space: gain, F/B over ±1.5 %, boom",
+      rows: [
+        ["Yagi, 2", "6.1 dBi; from 10 dB; 0.17 λ"],
+        ["Yagi, 3", "7.5 dBi; from 20 dB; 0.34 λ"],
+        ["Yagi, 4", "8.4 dBi; from 20 dB; 0.42 λ"],
+        ["Yagi, 5", "10.7 dBi; from 22 dB; 0.8 λ"],
+        ["Yagi, 6", "11.4 dBi; from 22 dB; 0.96 λ"],
+        ["Quad, 2", "7.2 dBi; from 15 dB; 0.15 λ"],
+        ["Quad, 3", "8.4 dBi; from 20 dB; 0.39 λ"],
+      ],
+    },
+    how: [
+      "The dimensions were found with this program: a search for the most gain with such an F/B and an SWR up to 1.5 over ±1.5 % around the frequency.",
+      "The Yagis are made for a 50-ohm line without matching; a quad of 2 or 3 loops has an impedance of about 100 ohms.",
+    ],
+    howTitle: "Good to know",
+    defaults: "3.",
   },
   pdf: {
     title: "PDF sheet",
@@ -75,7 +149,7 @@ export const TOPICS_EN: Record<TopicKey, Topic> = {
   },
   undo: {
     title: "Undo",
-    what: "Takes the model one step back: a change of a wire, a source or the settings, an opened file, the example, or a whole optimizer search.",
+    what: "Takes the model one step back: a change of a wire, a source or the settings, an opened file, a template, or a whole optimizer search.",
     how: [
       "Ctrl+Z when the cursor is not in an input field; in a field, Ctrl+Z undoes the typing in that field itself.",
       "Changes made in a row within a second, such as typing one number, are one step.",

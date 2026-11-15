@@ -164,3 +164,36 @@ test("moves the antenna to another frequency, with its diameters", async ({ page
   await page.keyboard.press("Control+z");
   await expect(page.getByLabel("Частота, МГц")).toHaveValue("14.15");
 });
+
+test("makes a Yagi from a template, cut to resonance for a 50-ohm line, and takes it back with Ctrl+Z", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Шаблони…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Шаблони антен" });
+  await dialog.locator("label", { hasText: "Yagi" }).click();
+  await expect(dialog.getByLabel("Висота траверси, м")).toHaveValue("10");
+  await dialog.getByLabel("Елементів").selectOption("4");
+  await dialog.getByRole("button", { name: "Створити", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  const name = page.getByRole("textbox", { name: "Назва моделі" });
+  await expect(name).toHaveValue("Yagi, 4 ел., 14.15 МГц");
+  await expect(page.locator(".messages.opened")).toContainText("підрізано до резонансу на висоті 10 м");
+  await compute(page);
+  const values = await page.locator(".results-strip dd").allTextContents();
+  expect(values[0]).toMatch(/ j0\.\d Ом$/);
+  expect(Number(values[1])).toBeLessThan(1.3);
+  // The whole antenna is one step.
+  await page.keyboard.press("Control+z");
+  await expect(name).toHaveValue("Диполь на 20 м");
+});
+
+test("says how high an antenna must hang when it does not fit above the ground", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Шаблони…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Шаблони антен" });
+  await dialog.locator("label", { hasText: "Дельта" }).click();
+  await dialog.getByLabel("Частота, МГц").fill("3.65");
+  await expect(dialog.locator(".messages.errors")).toContainText("підніміть її щонайменше до");
+  await expect(dialog.getByRole("button", { name: "Створити", exact: true })).toBeDisabled();
+  await dialog.getByRole("button", { name: "Скасувати" }).click();
+  await expect(dialog).toHaveCount(0);
+});

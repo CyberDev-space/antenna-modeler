@@ -13,3 +13,7 @@ The correction for elements of tubes of several diameters was written in a clean
 - Where the specification left the choice open, the code follows the sources: the rounded constants, the constant c₁ = 4253 (the product that defines it gives 4452.94, which makes the equivalent diameter 0.2 to 0.3 percent smaller), no iteration, and an element of one section is its own cylinder.
 - How a modelling program uses the cylinders, and which elements it gives them to, is the design of this project (`substitute` in `src/deck.ts`): straight elements symmetric about their centre, fed at the centre or not at all, without loads or other wires on them, and between 0.4 and 0.6 wavelengths long.
 - The specification and the notes of the dirty side are kept outside this repository.
+
+## The dimensions of the templates (`src/templates.ts`)
+
+The tables of the Yagis and the quads of several elements were found with this program and its engine, not taken from a published design. A search of Nelder and Mead from several starts varied the sizes of the parasitic elements and the spacings, cut the driven element to resonance at every step, and made the least gain over ±1.5 % of the frequency as large as it could while the least front-to-back ratio there stayed at its target and the SWR within 1.5. The search ran in free space, for elements a thousandth of a wavelength thick. The single-element antennas are plain geometry, cut to resonance by the engine when they are made.

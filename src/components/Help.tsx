@@ -84,7 +84,10 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   return (
     <HelpContext.Provider value={value}>
       {children}
-      {active && enabled && createPortal(<Popup topic={active.topic} anchor={active.anchor} onGone={hide} />, document.body)}
+      {/* In a modal window the popup must be inside it: the rest of the page is under the window. */}
+      {active &&
+        enabled &&
+        createPortal(<Popup topic={active.topic} anchor={active.anchor} onGone={hide} />, active.anchor.closest("dialog[open]") ?? document.body)}
     </HelpContext.Provider>
   );
 }

@@ -12,6 +12,7 @@ import { PatternCards, SummaryTiles } from "./components/Results";
 import { Settings } from "./components/Settings";
 import { SourceTable } from "./components/SourceTable";
 import { SweepPanel } from "./components/SweepPanel";
+import { TemplateDialog } from "./components/TemplateDialog";
 import { WireTable } from "./components/WireTable";
 import type { Output } from "nec2-wasm";
 import { currentLines, type CurrentLine } from "./currents";
@@ -113,6 +114,7 @@ export function App() {
   const [lastSweep, setLastSweep] = useState<(SheetSweep & { key: string }) | null>(null);
   const [matching, setMatching] = useState<MatchingInputs>(defaultMatchingInputs);
   const [editorView, setEditorView] = useState<"wires" | "elements">("wires");
+  const [templates, setTemplates] = useState(false);
 
   // The steps that Ctrl+Z takes back and Ctrl+Shift+Z brings again.
   const past = useRef<Model[]>([]);
@@ -331,16 +333,9 @@ export function App() {
               .nec
             </button>
           </Hint>
-          <Hint topic="example">
-            <button
-              type="button"
-              className="quiet"
-              onClick={() => {
-                edit(exampleModel(), true);
-                setFileNote(null);
-              }}
-            >
-              {t("Приклад")}
+          <Hint topic="templates">
+            <button type="button" className="quiet" onClick={() => setTemplates(true)}>
+              {t("Шаблони…")}
             </button>
           </Hint>
         </div>
@@ -576,6 +571,26 @@ export function App() {
         </div>
       </main>
     </div>
+
+    {templates && (
+      <TemplateDialog
+        model={model}
+        onClose={() => setTemplates(false)}
+        onCreate={(made, inputs) => {
+          edit(made, true);
+          setFileNote({
+            title: t("Створено з шаблону: {name}", { name: made.name }),
+            notes: [
+              made.ground.kind === "free"
+                ? t("Активний елемент підрізано до резонансу у вільному просторі.")
+                : t("Активний елемент підрізано до резонансу на висоті {height} м над землею цієї моделі.", { height: inputs.height }),
+              t("Натисніть «Розрахувати», щоб побачити опір і діаграми."),
+            ],
+          });
+          setTemplates(false);
+        }}
+      />
+    )}
 
     {/* Outside the application, which printing hides. */}
     <PrintSheet
