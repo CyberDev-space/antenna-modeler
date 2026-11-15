@@ -180,6 +180,55 @@ h2 {
   margin-top: 6px;
 }
 
+/* The heading of the wires, with the switch between the wires and the elements. */
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 6px 0 8px;
+}
+
+.section-head h2 {
+  margin: 0;
+}
+
+.view-switch {
+  display: flex;
+  gap: 2px;
+}
+
+.view-switch button {
+  margin: 0;
+  padding: 3px 10px;
+}
+
+.view-switch button.on {
+  border-color: var(--line);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.element-wires,
+.tubes {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.element-actions {
+  white-space: nowrap;
+}
+
+.element-actions button {
+  margin: 0;
+  padding: 2px 8px;
+}
+
+.note.problem {
+  color: var(--warning);
+}
+
 .editor > .messages:first-child {
   margin-top: 0;
 }

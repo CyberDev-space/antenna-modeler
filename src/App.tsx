@@ -5,6 +5,7 @@ import { defaultMatchingInputs, MatchingPanel, type MatchingInputs } from "./com
 import { OptimizerPanel } from "./components/OptimizerPanel";
 import { Card } from "./components/Card";
 import { CurrentsPanel } from "./components/CurrentsPanel";
+import { ElementTable } from "./components/ElementTable";
 import { HelpProvider, HelpSwitch, Hint } from "./components/Help";
 import { PrintSheet, type SheetSweep } from "./components/PrintSheet";
 import { PatternCards, SummaryTiles } from "./components/Results";
@@ -16,6 +17,7 @@ import type { Output } from "nec2-wasm";
 import { currentLines, type CurrentLine } from "./currents";
 import { buildDeck, exportDeck, type Deck } from "./deck";
 import { solve, stopEngine, Stopped, type Failure } from "./engine";
+import { removeWires } from "./elements";
 import { placedWires } from "./geometry";
 import { download, encodeAnsi, fileName, openModel, readText, restoreModel, saveModel } from "./files";
 import { exportMaa } from "./maa";
@@ -97,6 +99,7 @@ export function App() {
   const [tab, setTab] = useState<Tab>("view");
   const [lastSweep, setLastSweep] = useState<(SheetSweep & { key: string }) | null>(null);
   const [matching, setMatching] = useState<MatchingInputs>(defaultMatchingInputs);
+  const [editorView, setEditorView] = useState<"wires" | "elements">("wires");
 
   // The steps that Ctrl+Z takes back and Ctrl+Shift+Z brings again.
   const past = useRef<Model[]>([]);
@@ -388,8 +391,37 @@ export function App() {
             ))}
           </ul>
         )}
-        <h2>Дроти</h2>
-        <WireTable wires={model.wires} segments={deck.segments} equivalents={deck.equivalents} onChange={(wires) => edit({ ...model, wires })} />
+        <div className="section-head">
+          <h2>{editorView === "wires" ? "Дроти" : "Елементи"}</h2>
+          <div className="view-switch">
+            <Hint topic="viewWires">
+              <button type="button" className={editorView === "wires" ? "quiet on" : "quiet"} aria-pressed={editorView === "wires"} onClick={() => setEditorView("wires")}>
+                Дроти
+              </button>
+            </Hint>
+            <Hint topic="viewElements">
+              <button
+                type="button"
+                className={editorView === "elements" ? "quiet on" : "quiet"}
+                aria-pressed={editorView === "elements"}
+                onClick={() => setEditorView("elements")}
+              >
+                Елементи
+              </button>
+            </Hint>
+          </div>
+        </div>
+        {editorView === "wires" ? (
+          <WireTable
+            wires={model.wires}
+            segments={deck.segments}
+            equivalents={deck.equivalents}
+            onChange={(wires) => edit({ ...model, wires })}
+            onRemove={(index) => edit(removeWires(model, [index]), true)}
+          />
+        ) : (
+          <ElementTable model={model} onChange={edit} />
+        )}
         <h2>Джерела</h2>
         <SourceTable sources={model.sources} onChange={(sources) => edit({ ...model, sources })} />
         <h2>Навантаження</h2>

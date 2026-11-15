@@ -10,6 +10,8 @@ interface Props {
   /** The elements of tubes that the engine gets as one wire each. */
   equivalents: Equivalent[];
   onChange: (wires: Wire[]) => void;
+  /** Removes a wire, with the sources and loads on it; those on later wires stay on their wires. */
+  onRemove: (index: number) => void;
 }
 
 const COORDINATES = ["x1", "y1", "z1", "x2", "y2", "z2"] as const;
@@ -18,7 +20,7 @@ const COORDINATES = ["x1", "y1", "z1", "x2", "y2", "z2"] as const;
 const millimetres = (metres: number): number => Number((metres * 1000).toPrecision(10));
 
 /** The table of wires, as in MMANA: ends in metres, radius in millimetres. */
-export function WireTable({ wires, segments, equivalents, onChange }: Props) {
+export function WireTable({ wires, segments, equivalents, onChange, onRemove }: Props) {
   const replaced = new Set(equivalents.flatMap((one) => one.wires));
   const update = (index: number, change: Partial<Wire>) =>
     onChange(wires.map((wire, i) => (i === index ? { ...wire, ...change } : wire)));
@@ -89,7 +91,7 @@ export function WireTable({ wires, segments, equivalents, onChange }: Props) {
                   type="button"
                   className="quiet"
                   aria-label={`Вилучити дріт ${index + 1}`}
-                  onClick={() => onChange(wires.filter((_, i) => i !== index))}
+                  onClick={() => onRemove(index)}
                 >
                   ×
                 </button>
