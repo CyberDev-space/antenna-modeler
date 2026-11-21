@@ -956,6 +956,36 @@ legend {
   .charts.four {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
+  /* The Smith chart stands beside the other charts, over both their rows, where it can be round. */
+  .charts.with-smith {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+  .charts.four.with-smith {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr);
+  }
+  .charts .smith-card {
+    grid-row: 1 / span 2;
+    grid-column: -2 / -1;
+  }
+}
+
+/* In one column the Smith chart gets a height of its own, about as much as its width. */
+@media (max-width: 1099px) {
+  .smith .chart-body {
+    min-height: min(88vw, 440px);
+  }
+}
+
+.smith .start {
+  fill: var(--surface);
+  stroke: var(--trace);
+  stroke-width: 1.5;
+}
+
+.smith .model-point {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
 }
 
 .chart {
@@ -1581,6 +1611,10 @@ body.sheet-preview .print-sheet {
 
 .print-sheet .readout.overlay {
   display: none;
+}
+
+.sheet-smith {
+  max-width: 9cm;
 }
 
 .sheet-notes {

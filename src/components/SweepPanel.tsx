@@ -9,6 +9,7 @@ import { Card } from "./Card";
 import { Hint } from "./Help";
 import { LineChart, rangeOf } from "./LineChart";
 import { NumberField } from "./NumberField";
+import { SmithChart } from "./SmithChart";
 import { t } from "../i18n";
 
 interface Props {
@@ -196,7 +197,7 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
               {overBand}
             </Hint>
           </p>
-          <div className={withGain ? "charts four" : "charts"}>
+          <div className={withGain ? "charts four with-smith" : "charts with-smith"}>
             <Card title={t("КСХ ({reference} Ом)", { reference: swept.reference })}>
             <LineChart
               title={t("КСХ ({reference} Ом)", { reference: swept.reference })}
@@ -244,6 +245,15 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
                 />
               </Card>
             )}
+            <Card className="smith-card" title={<Hint topic="sweepSmith">{t("Діаграма Сміта ({reference} Ом)", { reference: swept.reference })}</Hint>}>
+              <SmithChart
+                title={t("Діаграма Сміта ({reference} Ом)", { reference: swept.reference })}
+                frequencies={frequencies}
+                impedances={points.map((point) => point.impedance)}
+                reference={swept.reference}
+                marker={swept.frequency}
+              />
+            </Card>
           </div>
           <p className="note">
             {t("{count} частот за {ms} мс. Вертикальна риска: частота моделі.", { count: points.length, ms: swept.milliseconds.toFixed(0) })}

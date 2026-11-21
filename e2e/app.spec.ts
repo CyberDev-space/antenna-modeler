@@ -197,3 +197,15 @@ test("says how high an antenna must hang when it does not fit above the ground",
   await dialog.getByRole("button", { name: "Скасувати" }).click();
   await expect(dialog).toHaveCount(0);
 });
+
+test("draws the sweep on the Smith chart, with a readout under the pointer", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("tab", { name: "Розгортка" }).click();
+  await page.getByRole("button", { name: "Розгорнути", exact: true }).click();
+  const chart = page.getByRole("img", { name: "Діаграма Сміта (50 Ом)" });
+  await expect(chart).toBeVisible({ timeout: 30_000 });
+  // The best match of the example dipole lies nearest the centre of the chart.
+  const box = (await chart.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.locator("#panel-sweep .smith figcaption")).toContainText(/1[34]\.\d{3} МГц Z \d+\.\d [+−] j\d+\.\d Ом, КСХ 1\.\d\d/);
+});

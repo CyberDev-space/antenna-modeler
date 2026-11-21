@@ -6,6 +6,7 @@ import { loadImpedance, resonance } from "../loads";
 import { formatPulse, type Model } from "../model";
 import { AXIS_NAMES, boom, directionText, elements, millimetres, planAxes, planDimensions, type ElementRow } from "../sheet";
 import { LineChart, rangeOf } from "./LineChart";
+import { SmithChart } from "./SmithChart";
 import { PolarPlot } from "./PolarPlot";
 import { degrees, fixed, impedance, swrText } from "./Results";
 import { GAIN_SPAN, RATIO_SPAN } from "./SweepPanel";
@@ -472,6 +473,16 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
               />
             </figure>
           )}
+          <figure className="sheet-chart sheet-smith">
+            <figcaption>{t("Діаграма Сміта ({reference} Ом)", { reference: sweep.reference })}</figcaption>
+            <SmithChart
+              title={t("Діаграма Сміта ({reference} Ом)", { reference: sweep.reference })}
+              frequencies={sweep.points.map((point) => point.frequency)}
+              impedances={sweep.points.map((point) => point.impedance)}
+              reference={sweep.reference}
+              marker={sweep.frequency}
+            />
+          </figure>
         </section>
       )}
 

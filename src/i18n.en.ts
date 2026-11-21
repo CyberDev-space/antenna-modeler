@@ -436,4 +436,5 @@ export const EN: Record<string, string> = {
   "Активний елемент підрізано до резонансу у вільному просторі.": "The driven element was cut to resonance in free space.",
   "Активний елемент підрізано до резонансу на висоті {height} м над землею цієї моделі.": "The driven element was cut to resonance {height} m above the ground of this model.",
   "Натисніть «Розрахувати», щоб побачити опір і діаграми.": "Press “Compute” to see the impedance and the patterns.",
+  "Діаграма Сміта ({reference} Ом)": "Smith chart ({reference} Ω)",
 };

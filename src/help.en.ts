@@ -664,6 +664,25 @@ export const TOPICS_EN: Record<TopicKey, Topic> = {
     ],
     howTitle: "How to read",
   },
+  sweepSmith: {
+    title: "Smith chart",
+    what: "The input impedance at every frequency of the sweep on the Smith chart of the line: the centre is a perfect match, and the farther from the centre, the higher the SWR.",
+    table: {
+      title: "How to read",
+      rows: [
+        ["Circles", "the same resistance R; labels on the horizontal axis, in ohms"],
+        ["Arcs", "the same reactance X: inductive above (`+j`), capacitive below (`−j`)"],
+        ["Dashed circles", "SWR 1.5 and 2: inside them the SWR is lower"],
+        ["Ring", "the model frequency; the hollow dot is the start of the sweep"],
+      ],
+    },
+    how: [
+      "As the frequency rises, the curve usually turns clockwise.",
+      "The longer the curve stays near the centre, the wider the band.",
+      "Rest the pointer on the curve to see the frequency, the impedance and the SWR there.",
+    ],
+    howTitle: "Good to know",
+  },
   sweepSource: {
     title: "Source on the charts",
     what: "In a model with several sources, chooses whose impedance and SWR to show.",
