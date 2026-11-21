@@ -209,3 +209,26 @@ test("draws the sweep on the Smith chart, with a readout under the pointer", asy
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await expect(page.locator("#panel-sweep .smith figcaption")).toContainText(/1[34]\.\d{3} МГц Z \d+\.\d [+−] j\d+\.\d Ом, КСХ 1\.\d\d/);
 });
+
+test("keeps a variant and draws it dashed beside the next one", async ({ page }) => {
+  await page.goto("/");
+  await compute(page);
+  await page.getByRole("tab", { name: "Розгортка" }).click();
+  await page.getByRole("button", { name: "Розгорнути", exact: true }).click();
+  await expect(page.getByRole("img", { name: "Діаграма Сміта (50 Ом)" })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Запам'ятати для порівняння" }).click();
+  await expect(page.locator(".pin-bar")).toContainText("Порівняння: Диполь на 20 м");
+  // The same dipole at a higher frequency: electrically longer.
+  const frequency = page.getByLabel("Частота, МГц");
+  await frequency.fill("14.35");
+  await frequency.blur();
+  await compute(page);
+  await expect(page.locator(".summary dd.pinned")).toHaveCount(6);
+  await expect(page.locator(".summary dd.pinned").first()).toContainText(" Ом");
+  await page.getByRole("button", { name: "Розгорнути", exact: true }).click();
+  // The SWR, R and X, the gain, the front/back and the Smith chart each get the dashed curve of the kept dipole.
+  await expect(page.locator("#panel-sweep .series.pinned")).toHaveCount(6);
+  await page.getByRole("button", { name: "Прибрати порівняння" }).click();
+  await expect(page.locator(".summary dd.pinned")).toHaveCount(0);
+  await expect(page.locator("#panel-sweep .series.pinned")).toHaveCount(0);
+});

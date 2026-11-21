@@ -12,6 +12,8 @@ interface Props {
   labels: [string, string, string, string];
   /** Only the upper half is drawn: a pattern over a ground. */
   upperHalf?: boolean;
+  /** The cut of a variant kept for comparison, drawn dashed on the same scale and read in brackets. */
+  compare?: Cut;
 }
 
 /** The plot shows this many dB below the maximum. */
@@ -25,7 +27,7 @@ const MARGIN = 26;
  * from the right. It fills the space it is given; the pointer reads the gain
  * at the nearest angle.
  */
-export function PolarPlot({ title, cut, max, labels, upperHalf }: Props) {
+export function PolarPlot({ title, cut, max, labels, upperHalf, compare }: Props) {
   const [host, size] = useSize<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
   const width = size.width || 300;
@@ -40,29 +42,35 @@ export function PolarPlot({ title, cut, max, labels, upperHalf }: Props) {
     const radians = (angle * Math.PI) / 180;
     return [cx + distance * Math.cos(radians), cy - distance * Math.sin(radians)];
   };
-  const closed = !upperHalf && cut.angle.length > 2;
-  const path =
-    cut.angle
+  // A cut all round closes on itself; one over a ground covers the upper half alone.
+  const outline = (one: Cut): string =>
+    one.angle
       .map((angle, i) => {
-        const [x, y] = point(angle, r(cut.gain[i]));
+        const [x, y] = point(angle, r(one.gain[i]));
         return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
       })
-      .join(" ") + (closed ? " Z" : "");
+      .join(" ") + (!upperHalf && one.angle.length > 2 && one.angle.at(-1)! - one.angle[0] > 180 ? " Z" : "");
+  // A variant in free space compared over a ground: only its upper half is on the plot.
+  const kept =
+    compare && upperHalf
+      ? (({ angle, gain }: Cut): Cut => {
+          const shown = angle.flatMap((one, i) => (one <= 180 ? [i] : []));
+          return { angle: shown.map((i) => angle[i]), gain: shown.map((i) => gain[i]) };
+        })(compare)
+      : compare;
+  const gap = (a: number, b: number): number => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
+  /** The index of the angle of a cut nearest to an angle. */
+  const nearest = (one: Cut, angle: number): number => one.angle.reduce((best, a, i) => (gap(a, angle) < gap(one.angle[best], angle) ? i : best), 0);
 
   const move = (event: PointerEvent<SVGSVGElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
     const angle = (((Math.atan2(cy - (event.clientY - box.top), event.clientX - box.left - cx) * 180) / Math.PI) + 360) % 360;
-    let nearest = 0;
-    const gap = (a: number): number => Math.min(Math.abs(a - angle), 360 - Math.abs(a - angle));
-    cut.angle.forEach((a, i) => {
-      if (gap(a) < gap(cut.angle[nearest])) nearest = i;
-    });
-    setHover(cut.angle.length > 0 ? nearest : null);
+    setHover(cut.angle.length > 0 ? nearest(cut, angle) : null);
   };
+  const gainText = (gain: number): string => (gain <= -900 ? t("немає поля") : t("{gain} дБі", { gain: gain.toFixed(2) }));
+  const other = hover !== null && kept && kept.angle.length > 0 ? kept.gain[nearest(kept, cut.angle[hover])] : null;
   const readout =
-    hover === null
-      ? null
-      : `${Number(cut.angle[hover].toFixed(1))}°: ${cut.gain[hover] <= -900 ? t("немає поля") : t("{gain} дБі", { gain: cut.gain[hover].toFixed(2) })}`;
+    hover === null ? null : `${Number(cut.angle[hover].toFixed(1))}°: ${gainText(cut.gain[hover])}${other === null ? "" : ` (${gainText(other)})`}`;
 
   return (
     <figure className="plot">
@@ -97,7 +105,8 @@ export function PolarPlot({ title, cut, max, labels, upperHalf }: Props) {
               {ring}
             </text>
           ))}
-          <path className="pattern" d={path} />
+          {kept && kept.angle.length > 0 && <path className="pattern-pinned" d={outline(kept)} />}
+          <path className="pattern" d={outline(cut)} />
           {hover !== null && (
             <g>
               <line className="cursor" x1={cx} y1={cy} {...(([x2, y2]) => ({ x2, y2 }))(point(cut.angle[hover], radius))} />

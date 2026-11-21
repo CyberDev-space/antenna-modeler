@@ -26,10 +26,18 @@ interface TilesProps {
   reference: number;
   /** The model has loss in its wires or loads: the efficiency says something. */
   lossy: boolean;
+  /** The results of a variant kept for comparison, shown under the numbers of the model. */
+  pinned?: Summary | null;
 }
 
+/** The difference of the model now from the kept variant, with its sign and a true minus; nothing for none. */
+const change = (value: number, digits: number): string => {
+  const text = fixed(value, digits);
+  return Number(text) === 0 ? "" : `, Δ ${value > 0 ? "+" : ""}${text}`;
+};
+
 /** The numbers that matter most, in one row: the impedance and SWR of every source, gain, F/B, the direction of the maximum. */
-export function SummaryTiles({ summary, sources, reference, lossy }: TilesProps) {
+export function SummaryTiles({ summary, sources, reference, lossy, pinned }: TilesProps) {
   const several = summary.ports.length > 1;
   const input = summary.ports.reduce((total, port) => total + port.power, 0);
   return (
@@ -42,12 +50,14 @@ export function SummaryTiles({ summary, sources, reference, lossy }: TilesProps)
                 <Hint topic="impedance">{t("Вхідний опір")}</Hint>
               </dt>
               <dd>{impedance(summary.impedance)}</dd>
+              {pinned && pinned.ports.length === 1 && <dd className="pinned">{impedance(pinned.impedance)}</dd>}
             </div>
             <div>
               <dt>
                 <Hint topic="swr">{t("КСХ ({reference} Ом)", { reference })}</Hint>
               </dt>
               <dd>{swrText(summary.swr)}</dd>
+              {pinned && pinned.ports.length === 1 && <dd className="pinned">{swrText(pinned.swr)}</dd>}
             </div>
           </>
         )}
@@ -56,24 +66,38 @@ export function SummaryTiles({ summary, sources, reference, lossy }: TilesProps)
             <Hint topic="gain">{t("Підсилення")}</Hint>
           </dt>
           <dd>{t("{gain} дБі", { gain: fixed(summary.gain, 2) })}</dd>
+          {pinned && (
+            <dd className="pinned">
+              {t("{gain} дБі", { gain: fixed(pinned.gain, 2) })}
+              {change(summary.gain - pinned.gain, 2)}
+            </dd>
+          )}
         </div>
         <div>
           <dt>
             <Hint topic="frontToBack">{t("Фронт/тил")}</Hint>
           </dt>
           <dd>{summary.frontToBack === null ? "—" : t("{ratio} дБ", { ratio: fixed(summary.frontToBack, 1) })}</dd>
+          {pinned && (
+            <dd className="pinned">
+              {pinned.frontToBack === null ? "—" : t("{ratio} дБ", { ratio: fixed(pinned.frontToBack, 1) })}
+              {summary.frontToBack !== null && pinned.frontToBack !== null && change(summary.frontToBack - pinned.frontToBack, 1)}
+            </dd>
+          )}
         </div>
         <div>
           <dt>
             <Hint topic="elevation">{t("Кут випромінювання")}</Hint>
           </dt>
           <dd>{degrees(summary.elevation)}°</dd>
+          {pinned && <dd className="pinned">{degrees(pinned.elevation)}°</dd>}
         </div>
         <div>
           <dt>
             <Hint topic="azimuth">{t("Азимут максимуму")}</Hint>
           </dt>
           <dd>{fixed(summary.azimuth, 0)}°</dd>
+          {pinned && <dd className="pinned">{fixed(pinned.azimuth, 0)}°</dd>}
         </div>
         {lossy && summary.efficiency !== null && (
           <div>
@@ -122,21 +146,31 @@ interface PatternProps {
   summary: Summary;
   /** The pattern covers only the upper half space. */
   overGround: boolean;
+  /** The results of a variant kept for comparison, whose cuts are drawn dashed. */
+  pinned?: Summary | null;
 }
 
 /** The two cuts of the pattern through its maximum, each in a card of its own. */
-export function PatternCards({ summary, overGround }: PatternProps) {
-  const ring = Math.ceil(summary.gain);
+export function PatternCards({ summary, overGround, pinned }: PatternProps) {
+  // Both patterns on one scale, the larger maximum on the outer ring.
+  const ring = Math.ceil(Math.max(summary.gain, pinned?.gain ?? -Infinity));
   const scale = <span className="caption">{t("зовнішнє коло {ring} дБі", { ring })}</span>;
   const horizontal = t("Горизонтальна діаграма, кут {angle}°", { angle: fixed(summary.cutElevation, 0) });
   const vertical = t("Вертикальна діаграма, азимут {angle}°", { angle: fixed(summary.azimuth, 0) });
   return (
     <>
       <Card title={<Hint topic="patternHorizontal">{horizontal}</Hint>} actions={scale} className="pattern-h">
-        <PolarPlot title={horizontal} cut={summary.azimuthCut} max={ring} labels={["X", "Y", "−X", "−Y"]} />
+        <PolarPlot title={horizontal} cut={summary.azimuthCut} max={ring} labels={["X", "Y", "−X", "−Y"]} compare={pinned?.azimuthCut} />
       </Card>
       <Card title={<Hint topic="patternVertical">{vertical}</Hint>} actions={scale} className="pattern-v">
-        <PolarPlot title={vertical} cut={summary.elevationCut} max={ring} labels={["0°", "90°", "180°", "−90°"]} upperHalf={overGround} />
+        <PolarPlot
+          title={vertical}
+          cut={summary.elevationCut}
+          max={ring}
+          labels={["0°", "90°", "180°", "−90°"]}
+          upperHalf={overGround}
+          compare={pinned?.elevationCut}
+        />
       </Card>
     </>
   );

@@ -14,6 +14,8 @@ interface Props {
   reference: number;
   /** A frequency to mark: that of the model. */
   marker?: number;
+  /** The impedances of a variant kept for comparison, drawn dashed. */
+  compare?: [number, number][];
 }
 
 /** The normalized resistances and reactances of the grid. */
@@ -35,7 +37,7 @@ const inOhms = (normalized: number, reference: number): string => String(Number(
  * a perfect match, the circles of the grid are resistances and the arcs
  * reactances, both labelled in ohms. A readout follows the pointer.
  */
-export function SmithChart({ title, frequencies, impedances, reference, marker }: Props) {
+export function SmithChart({ title, frequencies, impedances, reference, marker, compare }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const [host, size] = useSize<HTMLDivElement>();
   // The circle that clips the grid, by a name that is safe in a reference to it.
@@ -77,6 +79,7 @@ export function SmithChart({ title, frequencies, impedances, reference, marker }
           <span className="legend tone-a">
             Z{hover !== null && ` ${impedance(impedances[hover])}, ${t("КСХ")} ${swrText(swr(impedances[hover], reference))}`}
           </span>
+          {compare && <span className="legend pinned">{t("порівняння")}</span>}
         </span>
       </figcaption>
       <div className="chart-body" ref={host}>
@@ -131,6 +134,12 @@ export function SmithChart({ title, frequencies, impedances, reference, marker }
               </text>
             );
           })}
+          {compare && (
+            <polyline
+              className="series pinned tone-a"
+              points={compare.map((z) => place(reflection(z, reference)).map((value) => value.toFixed(1)).join(",")).join(" ")}
+            />
+          )}
           <polyline className="series tone-a" points={points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")} />
           {points.length > 0 && <circle className="start" cx={points[0][0]} cy={points[0][1]} r={3 * k} />}
           {marked && <circle className="model-point" cx={marked[0]} cy={marked[1]} r={4.5 * k} />}

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { summarize, type Summary } from "./analysis";
+import { summarize, type Summary, type SweepPoint } from "./analysis";
 import { LoadTable } from "./components/LoadTable";
 import { defaultMatchingInputs, MatchingPanel, type MatchingInputs } from "./components/MatchingPanel";
 import { OptimizerPanel } from "./components/OptimizerPanel";
@@ -51,6 +51,14 @@ interface FileNote {
   /** What the file could not give or hold. */
   notes: string[];
   failed?: boolean;
+}
+
+/** The results of a variant kept for comparison, drawn beside those of the model now. */
+interface Pinned {
+  name: string;
+  summary: Summary;
+  /** Its sweep, if it was swept before it was kept. */
+  sweep: SweepPoint[] | null;
 }
 
 /** The tabs of the workspace. */
@@ -115,6 +123,7 @@ export function App() {
   const [matching, setMatching] = useState<MatchingInputs>(defaultMatchingInputs);
   const [editorView, setEditorView] = useState<"wires" | "elements">("wires");
   const [templates, setTemplates] = useState(false);
+  const [pinned, setPinned] = useState<Pinned | null>(null);
 
   // The steps that Ctrl+Z takes back and Ctrl+Shift+Z brings again.
   const past = useRef<Model[]>([]);
@@ -461,7 +470,7 @@ export function App() {
           {solved && (
             <>
               {stale && <p className="note">{t("Модель змінено: ці результати належать попередній.")}</p>}
-              <SummaryTiles summary={solved.summary} sources={solved.sources} reference={solved.reference} lossy={solved.lossy} />
+              <SummaryTiles summary={solved.summary} sources={solved.sources} reference={solved.reference} lossy={solved.lossy} pinned={pinned?.summary} />
               {solved.warnings.length > 0 && (
                 <ul className="messages warnings">
                   {solved.warnings.map((warning) => (
@@ -470,6 +479,34 @@ export function App() {
                 </ul>
               )}
             </>
+          )}
+          {(solved || pinned) && (
+            <div className="pin-bar">
+              {pinned && <span className="pinned-name">{t("Порівняння: {name}", { name: pinned.name })}</span>}
+              {solved && (
+                <Hint topic="compare">
+                  <button
+                    type="button"
+                    className="quiet"
+                    disabled={stale}
+                    onClick={() =>
+                      setPinned({
+                        name: model.name.trim() || t("модель без назви"),
+                        summary: solved.summary,
+                        sweep: lastSweep && lastSweep.key === sweepKey(model) ? lastSweep.points : null,
+                      })
+                    }
+                  >
+                    {t("Запам'ятати для порівняння")}
+                  </button>
+                </Hint>
+              )}
+              {pinned && (
+                <button type="button" className="quiet" onClick={() => setPinned(null)}>
+                  {t("Прибрати порівняння")}
+                </button>
+              )}
+            </div>
           )}
         </section>
 
@@ -504,7 +541,7 @@ export function App() {
           </Card>
           {solved ? (
             <div className={patternsClass}>
-              <PatternCards summary={solved.summary} overGround={solved.overGround} />
+              <PatternCards summary={solved.summary} overGround={solved.overGround} pinned={pinned?.summary} />
             </div>
           ) : (
             <div className="patterns empty">
@@ -522,7 +559,7 @@ export function App() {
         </div>
 
         <div className="tab-panel" role="tabpanel" id="panel-sweep" aria-labelledby="tab-sweep" hidden={tab !== "sweep"}>
-          <SweepPanel model={model} onChange={edit} onResult={setLastSweep} />
+          <SweepPanel model={model} onChange={edit} onResult={setLastSweep} pinned={pinned} />
         </div>
 
         <div className="tab-panel scroll" role="tabpanel" id="panel-matching" aria-labelledby="tab-matching" hidden={tab !== "matching"}>
@@ -554,7 +591,7 @@ export function App() {
           {/* The patterns of the best model so far fill the rest. */}
           {solved && (
             <div className={`${patternsClass} beside`}>
-              <PatternCards summary={solved.summary} overGround={solved.overGround} />
+              <PatternCards summary={solved.summary} overGround={solved.overGround} pinned={pinned?.summary} />
             </div>
           )}
         </div>

@@ -967,6 +967,21 @@ legend {
     grid-row: 1 / span 2;
     grid-column: -2 / -1;
   }
+  /* The charts of a sweep share the height of the window. On a short one they
+     keep a height that can be read, and the tab scrolls rather than let them overlap. */
+  #panel-sweep {
+    overflow-y: auto;
+  }
+  .sweep {
+    height: auto;
+    min-height: 100%;
+  }
+  .sweep .charts {
+    flex: 1 0 auto;
+  }
+  .sweep .charts .chart-body {
+    min-height: 150px;
+  }
 }
 
 /* In one column the Smith chart gets a height of its own, about as much as its width. */
@@ -1746,4 +1761,54 @@ dialog.templates h2 {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 14px;
+}
+
+/* A variant kept for comparison: dashed wherever it is drawn. */
+.series.pinned {
+  stroke-width: 1.6;
+  stroke-dasharray: 6 4;
+  opacity: 0.8;
+}
+
+.pattern-pinned {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.summary dd.pinned {
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.legend.pinned::before,
+.summary dd.pinned::before,
+.pin-bar .pinned-name::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 0;
+  margin-right: 5px;
+  border-top: 2px dashed var(--muted);
+  border-radius: 0;
+  background: none;
+  vertical-align: middle;
+}
+
+.pin-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.pin-bar button {
+  margin: 0;
+  padding: 2px 8px;
 }

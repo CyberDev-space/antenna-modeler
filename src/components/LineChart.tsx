@@ -1,4 +1,4 @@
-import { useState, type PointerEvent } from "react";
+import { useId, useState, type PointerEvent } from "react";
 import { ticks } from "../ticks";
 import { fontScale, useSize } from "../useSize";
 import { t } from "../i18n";
@@ -26,6 +26,21 @@ interface Props {
   marker?: number;
   /** Writes a value for the readout. */
   format: (value: number) => string;
+  /**
+   * The same quantities of a variant kept for comparison, at frequencies of
+   * its own: drawn dashed in the colours of `series`, in their order, and
+   * read in brackets.
+   */
+  compare?: { x: number[]; values: number[][] };
+}
+
+/** The value of a curve at a frequency, between its points; `null` beyond them. */
+function at(x: number[], values: number[], frequency: number): number | null {
+  const after = x.findIndex((one) => one >= frequency);
+  if (after < 0 || (after === 0 && x[0] > frequency)) return null;
+  if (after === 0) return values[0];
+  const part = (frequency - x[after - 1]) / (x[after] - x[after - 1]);
+  return values[after - 1] + part * (values[after] - values[after - 1]);
 }
 
 /** Room around the plot for the labels, in pixels at the usual font size. */
@@ -45,15 +60,17 @@ export function rangeOf(values: number[], least: number): [number, number] {
 }
 
 /** A chart of one or two quantities against frequency, with a readout under the pointer. It fills the space it is given. */
-export function LineChart({ title, x, xUnit = t("МГц"), xFormat = megahertz, series, range, guides = [], marker, format }: Props) {
+export function LineChart({ title, x, xUnit = t("МГц"), xFormat = megahertz, series, range, guides = [], marker, format, compare }: Props) {
   const [hover, setHover] = useState<number | null>(null);
+  // The plot area that clips the curves of a comparison, by a name that is safe in a reference to it.
+  const clip = `chart-clip-${useId().replace(/[^\w-]/g, "")}`;
   const [host, size] = useSize<HTMLDivElement>();
   const WIDTH = size.width || 520;
   const HEIGHT = size.height || 250;
   const k = fontScale();
   const [LEFT, RIGHT, TOP, BOTTOM] = [ROOM.left * k, ROOM.right * k, ROOM.top * k, ROOM.bottom * k];
 
-  const values = series.flatMap((one) => one.values).filter(Number.isFinite);
+  const values = [...series.flatMap((one) => one.values), ...(compare?.values.flat() ?? [])].filter(Number.isFinite);
   let [low, high] = range ?? [Math.min(...values), Math.max(...values)];
   if (!range) {
     const margin = (high - low || Math.abs(high) || 1) * 0.08;
@@ -81,12 +98,17 @@ export function LineChart({ title, x, xUnit = t("МГц"), xFormat = megahertz, 
       <figcaption>
         <span className="readout">
           {hover !== null && `${xFormat(x[hover])} ${xUnit} `}
-          {series.map((one) => (
-            <span key={one.name} className={`legend tone-${one.tone}`}>
-              {one.name}
-              {hover !== null && ` ${format(one.values[hover])}`}
-            </span>
-          ))}
+          {series.map((one, index) => {
+            const other = hover !== null && compare ? at(compare.x, compare.values[index], x[hover]) : null;
+            return (
+              <span key={one.name} className={`legend tone-${one.tone}`}>
+                {one.name}
+                {hover !== null && ` ${format(one.values[hover])}`}
+                {other !== null && ` (${format(other)})`}
+              </span>
+            );
+          })}
+          {compare && <span className="legend pinned">{t("порівняння")}</span>}
         </span>
       </figcaption>
       <div className="chart-body" ref={host}>
@@ -123,6 +145,24 @@ export function LineChart({ title, x, xUnit = t("МГц"), xFormat = megahertz, 
           ))}
         {marker !== undefined && marker >= first && marker <= last && (
           <line className="marker" x1={px(marker)} x2={px(marker)} y1={TOP} y2={HEIGHT - BOTTOM} />
+        )}
+        {compare && (
+          <>
+            <defs>
+              <clipPath id={clip}>
+                <rect x={LEFT} y={TOP} width={Math.max(0, WIDTH - LEFT - RIGHT)} height={Math.max(0, HEIGHT - TOP - BOTTOM)} />
+              </clipPath>
+            </defs>
+            <g clipPath={`url(#${clip})`}>
+              {series.map((one, index) => (
+                <polyline
+                  key={one.name}
+                  className={`series pinned tone-${one.tone}`}
+                  points={compare.values[index].map((value, i) => `${px(compare.x[i]).toFixed(1)},${py(value).toFixed(1)}`).join(" ")}
+                />
+              ))}
+            </g>
+          </>
         )}
         {series.map((one) => (
           <polyline

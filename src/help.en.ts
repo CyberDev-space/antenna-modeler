@@ -46,6 +46,16 @@ export const TOPICS_EN: Record<TopicKey, Topic> = {
     how: ["Coils and capacitors are written as such, so the deck is right at other frequencies too."],
     howTitle: "Good to know",
   },
+  compare: {
+    title: "Comparing variants",
+    what: "Keeps the results of this model to compare the next ones with: another size, another height, an optimization or another antenna altogether.",
+    how: [
+      "Keep the results, change the model and compute again: the numbers of the kept variant stand under the current ones, and its patterns and sweep curves lie dashed on the same charts.",
+      "To compare the sweep too, sweep the model before keeping it.",
+      "`Δ` next to the gain and the front/back is the difference: the current minus the kept. Under the pointer, the values of the kept variant are in brackets.",
+      "Keeping again replaces the kept variant, and “Remove the comparison” removes it.",
+    ],
+  },
   templates: {
     title: "Antenna templates",
     what: "Ready antennas to start with: a dipole, an inverted V, a vertical with radials, a delta loop, a quad and a Yagi. You give the frequency and the height; the program builds the antenna and cuts it to resonance with the NEC-2 engine.",

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Solution } from "nec2-wasm";
-import { band, bands, summarize, sweepPoints, type Range } from "../analysis";
+import { band, bands, summarize, sweepPoints, type Range, type SweepPoint } from "../analysis";
 import { buildDeck, buildSweepDeck } from "../deck";
 import { solve, stopEngine, Stopped, type Failure } from "../engine";
 import { formatPulse, sweepKey, type Model } from "../model";
@@ -17,6 +17,8 @@ interface Props {
   onChange: (model: Model) => void;
   /** Hears of the points of the last sweep, with the model they belong to as text, for the printed sheet. */
   onResult?: (result: (SheetSweep & { key: string }) | null) => void;
+  /** A variant kept for comparison, with its sweep if it was swept before it was kept. */
+  pinned?: { sweep: SweepPoint[] | null } | null;
 }
 
 interface Swept {
@@ -61,7 +63,7 @@ function bandsText(ranges: Range[]): string {
 }
 
 /** The sweep over frequency: its range, and charts of the SWR and of the impedance. */
-export function SweepPanel({ model, onChange, onResult }: Props) {
+export function SweepPanel({ model, onChange, onResult, pinned }: Props) {
   const [swept, setSwept] = useState<Swept | null>(null);
   const [running, setRunning] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -145,7 +147,13 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
           })
         : t(" У цій смузі підсилення {gain} дБі.", { gain: spread(inBand.map((point) => point.gain!)) })
       : "";
-  const top = swept ? Math.min(10, Math.max(3, Math.ceil(Math.max(...points.map((point) => point.swr))))) : 3;
+  // The sweep of the variant kept for comparison, drawn dashed on the same charts.
+  const other = pinned?.sweep ?? null;
+  const compare = (values: (point: SweepPoint) => number[]) =>
+    other ? { x: other.map((point) => point.frequency), values: values(other[0]).map((_, index) => other.map((point) => values(point)[index])) } : undefined;
+  const otherGains = other?.every((point) => point.gain !== null) ? other.map((point) => point.gain!) : [];
+  const otherRatios = other?.every((point) => point.frontToBack !== null) ? other.map((point) => point.frontToBack!) : [];
+  const top = swept ? Math.min(10, Math.max(3, Math.ceil(Math.max(...points.map((point) => point.swr), ...(other ?? []).map((point) => point.swr))))) : 3;
 
   return (
     <div className="sweep" aria-live="polite">
@@ -191,6 +199,9 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
       {swept && found && (
         <div className={stale ? "sweep-result stale" : "sweep-result"}>
           {stale && <p className="note">{t("Модель змінено: ці графіки належать попередній.")}</p>}
+          {pinned && !other && (
+            <p className="note">{t("Запам'ятований варіант не має розгортки: щоб порівняти й її, розгорніть модель, перш ніж запам'ятати її.")}</p>
+          )}
           <p className="band">
             <Hint topic="sweepBand">
               {t("Найменший КСХ {swr} на {frequency} МГц.", { swr: found.swr.toFixed(2), frequency: megahertz(found.best) })} {bandsText(bands(points, LIMIT))}
@@ -207,6 +218,7 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
               guides={[1.5, 2]}
               marker={swept.frequency}
               format={(value) => (Number.isFinite(value) ? value.toFixed(2) : "∞")}
+              compare={compare((point) => [point.swr])}
             />
             </Card>
             <Card title={t("Вхідний опір, Ом")}>
@@ -219,6 +231,7 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
               ]}
               marker={swept.frequency}
               format={(value) => value.toFixed(1).replace("-", "−")}
+              compare={compare((point) => point.impedance)}
             />
             </Card>
             {withGain && (
@@ -227,9 +240,10 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
                   title={t("Підсилення, дБі")}
                   x={frequencies}
                   series={[{ name: t("підсилення"), values: gains as number[], tone: "a" }]}
-                  range={rangeOf(gains as number[], GAIN_SPAN)}
+                  range={rangeOf([...(gains as number[]), ...otherGains], GAIN_SPAN)}
                   marker={swept.frequency}
                   format={(value) => value.toFixed(2).replace("-", "−")}
+                  compare={otherGains.length > 0 ? compare((point) => [point.gain!]) : undefined}
                 />
               </Card>
             )}
@@ -239,9 +253,10 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
                   title={t("Фронт/тил, дБ")}
                   x={frequencies}
                   series={[{ name: t("фронт/тил"), values: ratios as number[], tone: "b" }]}
-                  range={rangeOf(ratios as number[], RATIO_SPAN)}
+                  range={rangeOf([...(ratios as number[]), ...otherRatios], RATIO_SPAN)}
                   marker={swept.frequency}
                   format={(value) => value.toFixed(1).replace("-", "−")}
+                  compare={otherRatios.length > 0 ? compare((point) => [point.frontToBack!]) : undefined}
                 />
               </Card>
             )}
@@ -252,6 +267,7 @@ export function SweepPanel({ model, onChange, onResult }: Props) {
                 impedances={points.map((point) => point.impedance)}
                 reference={swept.reference}
                 marker={swept.frequency}
+                compare={other?.map((point) => point.impedance)}
               />
             </Card>
           </div>

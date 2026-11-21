@@ -437,4 +437,10 @@ export const EN: Record<string, string> = {
   "Активний елемент підрізано до резонансу на висоті {height} м над землею цієї моделі.": "The driven element was cut to resonance {height} m above the ground of this model.",
   "Натисніть «Розрахувати», щоб побачити опір і діаграми.": "Press “Compute” to see the impedance and the patterns.",
   "Діаграма Сміта ({reference} Ом)": "Smith chart ({reference} Ω)",
+  "порівняння": "comparison",
+  "Порівняння: {name}": "Comparison: {name}",
+  "модель без назви": "a model without a name",
+  "Запам'ятати для порівняння": "Keep for comparison",
+  "Прибрати порівняння": "Remove the comparison",
+  "Запам'ятований варіант не має розгортки: щоб порівняти й її, розгорніть модель, перш ніж запам'ятати її.": "The kept variant has no sweep: to compare it too, sweep the model before keeping it.",
 };
