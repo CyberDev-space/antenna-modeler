@@ -35,29 +35,19 @@ The interface, its messages, the help and the sheet are in Ukrainian and in Engl
 
 ### Embedding
 
-Another site can hold the program in an iframe, in its own language and theme. The address takes them as parameters, and the page then shows no switch for them, so that the site's own switches are not doubled:
+A site built with React can have the program as one of its components, in the language and the theme of the site; the program then shows no switches of its own for them:
 
-```html
-<iframe
-  src="https://cyberdev-space.github.io/antenna-modeler/?embed=1&lang=en&theme=dark"
-  title="Antenna modeler"
-  style="width: 100%; height: 85vh; border: 0"
-></iframe>
+```jsx
+import { AntennaModeler } from "antenna-modeler/embed";
+
+<AntennaModeler language="en" theme={theme} height="calc(100vh - 4rem)" />
 ```
 
-| Parameter | Values | What it does |
-|---|---|---|
-| `embed` | `1` | says that the page is embedded; in an iframe it is so anyway |
-| `lang` | `uk`, `en` | the language of the site; without it the page has its own list of languages |
-| `theme` | `light`, `dark` | the theme of the site; without it the page has its own switch |
+`language` is `uk` or `en`, `theme` is `light` or `dark` and may change at any time, and `height` is the height that the program fills on a wide screen. The program lives in a shadow root, so that its styles and those of the site do not touch each other, and its layout follows its own width rather than the window. It leaves the title, the language and the theme of the page alone, takes only the keys pressed inside it, and prints its sheet in a window of its own.
 
-When the theme of the site changes, it tells the page, which follows at once:
+The package is installed from GitHub, at a commit (`npm install https://codeload.github.com/CyberDev-space/antenna-modeler/tar.gz/<commit>`), and comes as source that the bundler of the site builds, sharing React with the site. The bundler must handle TypeScript and JSX, `new Worker(new URL(…, import.meta.url))` for the engine, the `.wasm` file of nec2-wasm as an asset and `?raw` for the stylesheet as text. Vite does all of it by itself; [cyberdev.space](https://cyberdev.space/radio/antenna-modeler/), a Docusaurus site, needs a small webpack plugin for it.
 
-```js
-iframe.contentWindow.postMessage({ type: "antenna-modeler:theme", theme: "light" }, "*");
-```
-
-`{ type: "antenna-modeler:language", language: "uk" }` changes the language in the same way. This is how [cyberdev.space](https://cyberdev.space/radio/antenna-modeler/) embeds it.
+The page of its own takes `?lang=uk|en` and `?theme=light|dark` in its address.
 
 ### What a file of MMANA loses
 
