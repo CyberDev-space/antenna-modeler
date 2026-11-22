@@ -1,6 +1,10 @@
 /* The light theme, and the dark one when the page or the site that holds it
-   chooses it: index.html sets data-theme before the first paint. */
-:root {
+   chooses it. The colours belong to the root of the program, .am-root, so
+   that they work in a shadow root inside another site too; on a page of its
+   own the document has them as well, and index.html sets its data-theme
+   before the first paint. */
+:root,
+.am-root {
   color-scheme: light;
   --page: #f6f7f9;
   --surface: #ffffff;
@@ -22,7 +26,8 @@
   line-height: 1.45;
 }
 
-:root[data-theme="dark"] {
+:root[data-theme="dark"],
+.am-root[data-theme="dark"] {
   color-scheme: dark;
   --page: #12161c;
   --surface: #1a2029;
@@ -51,6 +56,17 @@ body {
   color: var(--ink);
 }
 
+.am-root {
+  background: var(--page);
+  color: var(--ink);
+}
+
+/* The layout follows the width of the program, not of the window: inside
+   another site it may be narrower than the window. */
+.am-frame {
+  container: am / inline-size;
+}
+
 /* On a wide screen the page is an application: it fills the window, and
    only the editor and the panels of the workspace scroll. */
 .app {
@@ -60,11 +76,12 @@ body {
   padding: 10px 12px;
 }
 
-@media (min-width: 1100px) {
+@container am (min-width: 1100px) {
   .app {
-    height: 100vh;
-    height: 100dvh;
-    grid-template-columns: clamp(30rem, 34vw, 44rem) minmax(0, 1fr);
+    /* The height of the window, or the one that the site holding the program gives it. */
+    height: var(--am-height, 100vh);
+    height: var(--am-height, 100dvh);
+    grid-template-columns: clamp(30rem, 34cqw, 44rem) minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
     overflow: hidden;
   }
@@ -193,14 +210,14 @@ body {
 }
 
 /* Where the top bar is short of room, the closed list shows the flag alone; the open one names every language. */
-@media (max-width: 1499px) and (min-width: 1100px) {
+@container am (max-width: 1499px) and (min-width: 1100px) {
   .language-menu summary span {
     display: none;
   }
 }
 
 /* Shorter still, the switch of the help is its mark alone; screen readers still hear its name. */
-@media (max-width: 1399px) and (min-width: 1100px) {
+@container am (max-width: 1399px) and (min-width: 1100px) {
   .help-switch-label {
     position: absolute;
     width: 1px;
@@ -388,7 +405,7 @@ h2 {
   border-bottom: 1px solid var(--line);
 }
 
-@media (max-width: 600px) {
+@container am (max-width: 600px) {
   .tab {
     padding: 6px 10px;
   }
@@ -448,7 +465,7 @@ h2 {
   border-radius: 10px;
 }
 
-@media (min-width: 1100px) {
+@container am (min-width: 1100px) {
   .view-panel {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   }
@@ -528,7 +545,7 @@ button.icon {
   box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
 }
 
-@media (max-width: 1099px) {
+@container am (max-width: 1099px) {
   .card.expanded {
     position: fixed;
     inset: 0;
@@ -1090,7 +1107,7 @@ legend {
   min-height: 0;
 }
 
-@media (min-width: 1100px) {
+@container am (min-width: 1100px) {
   .charts {
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   }
@@ -1127,9 +1144,9 @@ legend {
 }
 
 /* In one column the Smith chart gets a height of its own, about as much as its width. */
-@media (max-width: 1099px) {
+@container am (max-width: 1099px) {
   .smith .chart-body {
-    min-height: min(88vw, 440px);
+    min-height: min(88cqw, 440px);
   }
 }
 

@@ -11,6 +11,7 @@ import type { Model } from "../model";
 import { PATTERN_RANGE, surface, viridis, type PatternGrid } from "../pattern";
 import { Hint } from "./Help";
 import { t } from "../i18n";
+import { LOGO } from "../logo";
 
 interface Props {
   /** The theme of the page: the colours of the view are those of the page, and change with it. */
@@ -352,7 +353,7 @@ export function View3D({ theme, model, marks, pattern, currents }: Props) {
         <div className="canvas" ref={host} role="img" aria-label={t("Тривимірний вигляд антени")} />
         {/* The mark of the author, faint, over a corner of the view. */}
         <span className="watermark" aria-hidden="true">
-          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" width="18" height="18" />
+          <img src={LOGO} alt="" width="18" height="18" />
           UR3PKI · cyberdev.space
         </span>
       </div>

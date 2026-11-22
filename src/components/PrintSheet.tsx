@@ -13,6 +13,7 @@ import { GAIN_SPAN, RATIO_SPAN } from "./SweepPanel";
 import { CABLES, ohms, partName, reactance, Schematic, value, type MatchingInputs } from "./MatchingPanel";
 import { hairpin, lNetworks, quarterWave, throughQuarterWave } from "../matching";
 import { language, N, t } from "../i18n";
+import { LOGO } from "../logo";
 
 /** The results that the sheet prints, as the page holds them. */
 export interface SheetResults {
@@ -171,7 +172,7 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
           </p>
         </div>
         <div className="sheet-brand">
-          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" width="22" height="22" />
+          <img src={LOGO} alt="" width="22" height="22" />
           UR3PKI · cyberdev.space
         </div>
       </header>

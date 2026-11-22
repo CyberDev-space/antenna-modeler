@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { TOPICS, type Topic, type TopicKey } from "../help";
 import { TOPICS_EN } from "../help.en";
@@ -20,8 +20,12 @@ const STORAGE_KEY = "antenna-modeler.help";
 /** The help waits this long under the pointer, so that it does not flicker while the pointer passes. */
 const WAIT = 350;
 
-/** The help of the page: the switch and the one popup that shows a topic beside its element. */
-export function HelpProvider({ children }: { children: ReactNode }) {
+/**
+ * The help of the page: the switch and the one popup that shows a topic
+ * beside its element. The popup goes into `portal`, the root of the program,
+ * which holds its colours also inside the shadow root of another site.
+ */
+export function HelpProvider({ children, portal }: { children: ReactNode; portal?: RefObject<HTMLElement | null> }) {
   const [enabled, setEnabledNow] = useState(() => {
     try {
       return localStorage.getItem(STORAGE_KEY) !== "off";
@@ -65,7 +69,9 @@ export function HelpProvider({ children }: { children: ReactNode }) {
       if (event.key === "Escape") hide();
     };
     const elsewhere = (event: PointerEvent) => {
-      if (!active.anchor.isConnected || !active.anchor.contains(event.target as Node)) hide();
+      // Inside a shadow root the window sees the host of the root as the target: the path has the real one.
+      const target = event.composedPath()[0] as Node | undefined;
+      if (!active.anchor.isConnected || !target || !active.anchor.contains(target)) hide();
     };
     window.addEventListener("keydown", key);
     window.addEventListener("scroll", hide, true);
@@ -87,7 +93,10 @@ export function HelpProvider({ children }: { children: ReactNode }) {
       {/* In a modal window the popup must be inside it: the rest of the page is under the window. */}
       {active &&
         enabled &&
-        createPortal(<Popup topic={active.topic} anchor={active.anchor} onGone={hide} />, active.anchor.closest("dialog[open]") ?? document.body)}
+        createPortal(
+          <Popup topic={active.topic} anchor={active.anchor} onGone={hide} />,
+          active.anchor.closest("dialog[open]") ?? portal?.current ?? document.body,
+        )}
     </HelpContext.Provider>
   );
 }

@@ -14,15 +14,18 @@ let current: Language = "uk";
 /** The language of the page. */
 export const language = (): Language => current;
 
-/** Sets the language of the page and remembers it in the browser. */
+/** Sets the language of the texts. */
 export function setLanguage(next: Language): void {
   current = next;
+}
+
+/** Remembers the language that the user chose, for the next visit. */
+export function rememberLanguage(next: Language): void {
   try {
     localStorage.setItem(STORAGE_KEY, next);
   } catch {
     // Without storage the choice lasts until the page is closed.
   }
-  if (typeof document !== "undefined") document.documentElement.lang = next;
 }
 
 /** The language that the page starts in: the one chosen before, else Ukrainian for a Ukrainian browser and English for others. */

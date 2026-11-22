@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { summarize, type Summary, type SweepPoint } from "./analysis";
 import { LoadTable } from "./components/LoadTable";
 import { defaultMatchingInputs, MatchingPanel, type MatchingInputs } from "./components/MatchingPanel";
@@ -25,8 +25,9 @@ import { exportMaa } from "./maa";
 import { defaultModel, formatPulse, resultKey, sweepKey, type Model } from "./model";
 import type { PatternGrid } from "./pattern";
 import { joinEnds } from "./segmentation";
-import { type Language, N, setLanguage, startingLanguage, t } from "./i18n";
-import { applyTheme, framed, givenLanguage, hostLanguage, hostMessage, hostTheme, startingTheme, storedTheme, storeTheme, systemTheme, type Theme } from "./host";
+import { type Language, N, rememberLanguage, setLanguage, startingLanguage, t } from "./i18n";
+import { applyTheme, hostMessage, startingTheme, storedTheme, storeTheme, systemTheme, type PageOptions, type Theme } from "./host";
+import { LOGO } from "./logo";
 import { LanguageMenu, ThemeToggle } from "./components/PageControls";
 
 // The view in space brings a large library: it is loaded after the page.
@@ -46,7 +47,6 @@ function storedModel(): Model {
 
 /** The site of the author, whose mark the page carries. */
 const SITE = "https://cyberdev.space/";
-const LOGO = `${import.meta.env.BASE_URL}logo.svg`;
 
 /** The example, named in the language of the page. */
 const exampleModel = (): Model => ({ ...defaultModel, name: t(defaultModel.name) });
@@ -84,6 +84,9 @@ const HISTORY = 100;
 /** Changes closer together than this, in milliseconds, as the keys of one number, are one step. */
 const ONE_STEP = 800;
 
+/** Where an event began: inside a shadow root the target that the window sees is the host of the root. */
+const origin = (event: Event): EventTarget | null => event.composedPath()[0] ?? event.target;
+
 /** Whether a key goes into a field that takes back its own typing. */
 function typing(target: EventTarget | null): boolean {
   if (target instanceof HTMLInputElement) return !["checkbox", "radio", "button", "submit", "file", "range", "color"].includes(target.type);
@@ -109,40 +112,60 @@ interface Solved {
   milliseconds: number;
 }
 
-export function App() {
+/**
+ * The program. On a page of its own it takes its options from the address;
+ * as a component of another site, from `embed.tsx`.
+ */
+export function App({ options = {} }: { options?: PageOptions }) {
+  const embedded = options.embedded ?? false;
+  // The root of the program: its theme, the place of its popups, and what its keys belong to.
+  const root = useRef<HTMLDivElement>(null);
   const [lang, setLang] = useState<Language>(() => {
-    const start = givenLanguage ?? startingLanguage();
+    const start = options.language ?? options.startLanguage ?? (embedded ? "uk" : startingLanguage());
     setLanguage(start);
     return start;
   });
-  const changeLanguage = (next: Language) => {
+  const changeLanguage = (next: Language, remember: boolean) => {
     setLanguage(next);
+    if (remember) rememberLanguage(next);
     setLang(next);
   };
-  const [theme, setTheme] = useState<Theme>(() => {
-    const start = startingTheme();
-    applyTheme(start);
-    return start;
-  });
-  /** Shows the page in a theme; the colours change before anything is drawn anew, the 3D view among it. */
+  const [theme, setTheme] = useState<Theme>(() => options.theme ?? options.startTheme ?? (embedded ? "light" : startingTheme()));
+  /** Shows the program in a theme. The root gets it before the effects run, so the 3D view redraws in its colours. */
   const changeTheme = (next: Theme, remember: boolean) => {
-    applyTheme(next);
     if (remember) storeTheme(next);
     setTheme(next);
   };
+  // The site around the program changes its language or its theme.
+  useEffect(() => {
+    if (options.language) changeLanguage(options.language, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options.language]);
+  useEffect(() => {
+    if (options.theme) setTheme(options.theme);
+  }, [options.theme]);
+  // On a page of its own the whole document follows: the window behind the program, its title and its language.
+  useLayoutEffect(() => {
+    if (!embedded) applyTheme(theme);
+  }, [embedded, theme]);
+  useEffect(() => {
+    if (embedded) return;
+    document.documentElement.lang = lang;
+    document.title = `${t("Моделювання антен")} · UR3PKI · cyberdev.space`;
+  }, [embedded, lang]);
   useEffect(() => {
     // The theme of the system, while the user has chosen none and no site gives one.
     const scheme = matchMedia("(prefers-color-scheme: dark)");
     const follow = () => {
-      if (!hostTheme && !storedTheme()) changeTheme(systemTheme(), false);
+      if (!embedded && !options.theme && !storedTheme()) changeTheme(systemTheme(), false);
     };
     scheme.addEventListener("change", follow);
-    // The site that holds the page changes its theme or its language.
+    // The site that holds the page in an iframe changes its theme or its language.
     const listen = (event: MessageEvent) => {
-      if (!framed || event.source !== window.parent) return;
+      if (!options.listen || event.source !== window.parent) return;
       const message = hostMessage(event.data);
       if (message && "theme" in message) changeTheme(message.theme, false);
-      if (message && "language" in message) changeLanguage(message.language);
+      if (message && "language" in message) changeLanguage(message.language, false);
     };
     window.addEventListener("message", listen);
     return () => {
@@ -152,9 +175,8 @@ export function App() {
     // The handlers only set state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => {
-    document.title = `${t("Моделювання антен")} · UR3PKI · cyberdev.space`;
-  }, [lang]);
+  /** Whether a key is for the program: on a page of its own every key is; inside another page, those pressed inside it. */
+  const mine = (event: Event): boolean => !embedded || (root.current !== null && event.composedPath().includes(root.current));
   const [model, setModel] = useState<Model>(storedModel);
   const [solved, setSolved] = useState<Solved | null>(null);
   const [running, setRunning] = useState(false);
@@ -206,7 +228,7 @@ export function App() {
   historyRef.current = { undo, redo };
   useEffect(() => {
     const press = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey || typing(event.target)) return;
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || !mine(event) || typing(origin(event))) return;
       // By the place of the key, so that it works with any layout, Ukrainian too.
       if (event.code === "KeyZ" && !event.shiftKey) {
         event.preventDefault();
@@ -320,7 +342,7 @@ export function App() {
   const canCompute = !running && deck.errors.length === 0;
   useEffect(() => {
     const press = (event: KeyboardEvent) => {
-      if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && canCompute) {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && canCompute && mine(event)) {
         event.preventDefault();
         void computeRef.current();
       }
@@ -335,7 +357,11 @@ export function App() {
   async function printSheet() {
     if ((!solved || stale) && canCompute) await compute();
     // The sheet shows the new results once the page has drawn them.
-    setTimeout(() => window.print(), 200);
+    setTimeout(() => {
+      const sheet = root.current?.querySelector<HTMLElement>(".print-sheet");
+      if (options.print && sheet) options.print(sheet);
+      else window.print();
+    }, 200);
   }
   // A failure says nothing about a model that was changed since.
   const problems = deck.errors.length > 0 ? deck.errors : failure?.model === key ? failure.lines : null;
@@ -343,7 +369,9 @@ export function App() {
   const patternsClass = ["patterns", solved?.overGround && "over-ground", stale && "stale"].filter(Boolean).join(" ");
 
   return (
-    <HelpProvider>
+    <div ref={root} className="am-root" data-theme={theme}>
+    <HelpProvider portal={root}>
+    <div className="am-frame">
     <div className="app">
       <header className="topbar">
         <div className="brand">
@@ -424,8 +452,8 @@ export function App() {
           </Hint>
         </div>
         {/* A site that gives the page its language or its theme has a switch of its own for it. */}
-        {!hostLanguage && <LanguageMenu language={lang} onChange={changeLanguage} />}
-        {!hostTheme && <ThemeToggle theme={theme} onChange={(next) => changeTheme(next, true)} />}
+        {!options.language && <LanguageMenu language={lang} onChange={(next) => changeLanguage(next, !embedded)} />}
+        {!options.theme && <ThemeToggle theme={theme} onChange={(next) => changeTheme(next, !embedded)} />}
         <HelpSwitch />
         <Hint topic="pdf">
           <button type="button" onClick={printSheet}>
@@ -682,6 +710,8 @@ export function App() {
       sweep={lastSweep && lastSweep.key === sweepKey(model) ? lastSweep : null}
       matching={matching}
     />
+    </div>
     </HelpProvider>
+    </div>
   );
 }

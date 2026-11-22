@@ -1,29 +1,54 @@
 import type { Language } from "./i18n";
 
 /*
- * How the page is shown: on its own, or inside another site, which gives it
- * its language and its theme. Such a site holds the page in an iframe with
- * `?embed=1&lang=en&theme=dark`, and when its own theme changes it posts
- * `{ type: "antenna-modeler:theme", theme: "light" }` to the iframe.
+ * How the program is shown: on a page of its own, or as a component of
+ * another site, which gives it its language and its theme. A site built
+ * with React renders `AntennaModeler` from `embed.tsx`; any other can hold
+ * the page in an iframe with `?embed=1&lang=en&theme=dark` and post
+ * `{ type: "antenna-modeler:theme", theme: "light" }` to it when its theme
+ * changes.
  */
 
 export type Theme = "light" | "dark";
 
-const params = new URLSearchParams(typeof location === "undefined" ? "" : location.search);
+/** How the program is shown and what the site around it gives it. */
+export interface PageOptions {
+  /** The language that the site gives: the program shows no list of languages then. */
+  language?: Language;
+  /** The theme that the site gives: the program shows no switch of the theme then. */
+  theme?: Theme;
+  /** The language and the theme to start in when no site gives them: those of the address of a page of its own. */
+  startLanguage?: Language;
+  startTheme?: Theme;
+  /**
+   * The program is a part of another page: it leaves the title, the language
+   * and the theme of the document alone, takes keys only from inside itself
+   * and remembers no language or theme of its own.
+   */
+  embedded?: boolean;
+  /** Prints the sheet. Without it the page prints itself, which shows the sheet alone. */
+  print?: (sheet: HTMLElement) => void;
+  /** The page is in an iframe: the site around it posts its theme and language. */
+  listen?: boolean;
+}
 
-/** Whether another page holds this one: it is in an iframe, or its address says so. */
-export const framed = typeof window !== "undefined" && (window.self !== window.top || params.has("embed"));
-
-const language = params.get("lang");
-const theme = params.get("theme");
-
-/** The language and the theme that the address gives, if any. */
-export const givenLanguage: Language | null = language === "uk" || language === "en" ? language : null;
-export const givenTheme: Theme | null = theme === "light" || theme === "dark" ? theme : null;
-
-/** The site that holds the page chooses its language, or its theme: the page shows no switch of its own for it. */
-export const hostLanguage = framed && givenLanguage !== null;
-export const hostTheme = framed && givenTheme !== null;
+/** The options of the page on its own, from its address. */
+export function pageOptions(): PageOptions {
+  const params = new URLSearchParams(location.search);
+  const language = params.get("lang");
+  const theme = params.get("theme");
+  const givenLanguage: Language | undefined = language === "uk" || language === "en" ? language : undefined;
+  const givenTheme: Theme | undefined = theme === "light" || theme === "dark" ? theme : undefined;
+  // In an iframe the site that holds the page has switches of its own for what it gives.
+  const framed = window.self !== window.top || params.has("embed");
+  return {
+    language: framed ? givenLanguage : undefined,
+    theme: framed ? givenTheme : undefined,
+    startLanguage: givenLanguage,
+    startTheme: givenTheme,
+    listen: framed,
+  };
+}
 
 /** A message of the site that holds the page: a new theme or language for it, or `null` for anything else. */
 export function hostMessage(data: unknown): { theme: Theme } | { language: Language } | null {
@@ -49,10 +74,10 @@ export function storedTheme(): Theme | null {
 /** The theme of the system. */
 export const systemTheme = (): Theme => (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 
-/** The theme that the page starts in: the one of its address, the one chosen before, else that of the system. */
-export const startingTheme = (): Theme => givenTheme ?? storedTheme() ?? systemTheme();
+/** The theme that a page of its own starts in: the one chosen before, else that of the system. */
+export const startingTheme = (): Theme => storedTheme() ?? systemTheme();
 
-/** Shows the page in a theme. The colours follow at once, before React draws anything anew. */
+/** Shows the whole document in a theme: on a page of its own, the window behind the program and its scroll bars. */
 export function applyTheme(next: Theme): void {
   document.documentElement.dataset.theme = next;
 }

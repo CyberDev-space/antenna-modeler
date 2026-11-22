@@ -50,7 +50,8 @@ export function LanguageMenu({ language, onChange }: { language: Language; onCha
     const close = (event: Event) => {
       const element = menu.current;
       if (!element?.open) return;
-      if (event instanceof KeyboardEvent ? event.key === "Escape" : !element.contains(event.target as Node)) element.open = false;
+      // Inside a shadow root the window sees the host of the root as the target: the path has the real one.
+      if (event instanceof KeyboardEvent ? event.key === "Escape" : !element.contains(event.composedPath()[0] as Node)) element.open = false;
     };
     window.addEventListener("pointerdown", close);
     window.addEventListener("keydown", close);
