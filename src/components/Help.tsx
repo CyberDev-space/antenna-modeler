@@ -225,7 +225,7 @@ export function HelpSwitch() {
         <span aria-hidden="true" className="help-mark">
           ?
         </span>
-        {t("Підказки")}
+        <span className="help-switch-label">{t("Підказки")}</span>
       </button>
     </Hint>
   );
