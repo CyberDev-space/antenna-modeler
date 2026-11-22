@@ -1,6 +1,10 @@
 # antenna-modeler
 
-Working title. A program for modeling wire antennas in the browser: as easy to use as MMANA, with the accuracy of NEC-2 and a real ground.
+A program for modeling wire antennas in the browser: as easy to use as MMANA, with the accuracy of NEC-2 and a real ground. By UR3PKI, part of [CyberDevSpace](https://cyberdev.space/).
+
+**Use it:** [on cyberdev.space](https://cyberdev.space/radio/antenna-modeler/) · [on a page of its own](https://cyberdev-space.github.io/antenna-modeler/) · [the guide](https://cyberdev.space/guides/antenna-modeler/), in Ukrainian and English
+
+![The program with a 3-element Yagi for 20 m from its templates: the antenna in space with its pattern, the two cuts of the pattern and the results](public/screenshot.png)
 
 ## Status
 
@@ -27,7 +31,33 @@ The program itself is in development. This works now:
 
 Not there yet: a link that holds a model.
 
-The interface, its messages, the help and the sheet are in Ukrainian and in English. The page starts in Ukrainian for a browser set to Ukrainian and in English for any other, and a switch in the top bar changes it; the browser remembers the choice.
+The interface, its messages, the help and the sheet are in Ukrainian and in English. The page starts in Ukrainian for a browser set to Ukrainian and in English for any other, and a list with flags in the top bar changes it; the browser remembers the choice. It has a light and a dark theme: at first that of the system, and a switch in the top bar chooses one.
+
+### Embedding
+
+Another site can hold the program in an iframe, in its own language and theme. The address takes them as parameters, and the page then shows no switch for them, so that the site's own switches are not doubled:
+
+```html
+<iframe
+  src="https://cyberdev-space.github.io/antenna-modeler/?embed=1&lang=en&theme=dark"
+  title="Antenna modeler"
+  style="width: 100%; height: 85vh; border: 0"
+></iframe>
+```
+
+| Parameter | Values | What it does |
+|---|---|---|
+| `embed` | `1` | says that the page is embedded; in an iframe it is so anyway |
+| `lang` | `uk`, `en` | the language of the site; without it the page has its own list of languages |
+| `theme` | `light`, `dark` | the theme of the site; without it the page has its own switch |
+
+When the theme of the site changes, it tells the page, which follows at once:
+
+```js
+iframe.contentWindow.postMessage({ type: "antenna-modeler:theme", theme: "light" }, "*");
+```
+
+`{ type: "antenna-modeler:language", language: "uk" }` changes the language in the same way. This is how [cyberdev.space](https://cyberdev.space/radio/antenna-modeler/) embeds it.
 
 ### What a file of MMANA loses
 
@@ -107,10 +137,10 @@ EN
 | Engine | our own NEC-2 engine in Rust, [nec2-rs](https://github.com/CyberDev-space/nec2-rs) (MIT license), compiled to WebAssembly and hidden behind an interface of its own |
 | Parallelism | a Web Worker runs the engine; a pool of workers for the points of a sweep and the variants of the optimizer is planned |
 | 3D | three.js |
-| Charts | our own SVG: line charts for sweeps and polar plots for patterns; a Smith chart is planned |
+| Charts | our own SVG: line charts for sweeps, polar plots for patterns and the Smith chart |
 | Format | our own JSON; import and export of `.maa`; export of `.nec`; a link that holds a model is planned |
 | Tests | Vitest, with reference results from nec2c; Playwright for the page in Chrome |
-| License | MIT, like the engine |
+| License | MIT, like the engine; the mark of CyberDevSpace in `public/logo.svg` belongs to its author and is not covered by it |
 
 At first the engine was to be the ready-made package [`@necpp-engine/wasm`](https://www.npmjs.com/package/@necpp-engine/wasm) (NEC2++, GPL). On 2026-11-21 it was decided to write an engine of our own instead: a port of the public-domain nec2c to Rust. The code of NEC2++ and xnec2c is not read for it. The rules are in [PROVENANCE.md](https://github.com/CyberDev-space/nec2-rs/blob/main/PROVENANCE.md) of nec2-rs.
 

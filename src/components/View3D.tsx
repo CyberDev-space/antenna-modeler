@@ -6,12 +6,15 @@ import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
 import { CURRENT_POWER, magnitude, type CurrentLine } from "../currents";
 import { bounds, farthest, feedPoint, placedWires, roughMarks, type Marks, type Point } from "../geometry";
+import type { Theme } from "../host";
 import type { Model } from "../model";
 import { PATTERN_RANGE, surface, viridis, type PatternGrid } from "../pattern";
 import { Hint } from "./Help";
 import { t } from "../i18n";
 
 interface Props {
+  /** The theme of the page: the colours of the view are those of the page, and change with it. */
+  theme: Theme;
   model: Model;
   /** Where the sources and the loads sit, from the deck of the model; `null` while the model has none. */
   marks: Marks | null;
@@ -84,7 +87,7 @@ function standOff(axis: Point): Point {
 }
 
 /** The antenna in space: drag to turn it, scroll to zoom. The Z axis points up. */
-export function View3D({ model, marks, pattern, currents }: Props) {
+export function View3D({ theme, model, marks, pattern, currents }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const stage = useRef<Stage | null>(null);
   const [unavailable, setUnavailable] = useState(false);
@@ -283,7 +286,7 @@ export function View3D({ model, marks, pattern, currents }: Props) {
     draw();
     // The keys stand for the wires and the marks: the effect runs when the values change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wiresKey, marksKey, originKey, ground.kind, fitRequest, showPattern]);
+  }, [wiresKey, marksKey, originKey, ground.kind, fitRequest, showPattern, theme]);
 
   // The pattern in space, out of the feed point.
   useEffect(() => {
@@ -335,7 +338,7 @@ export function View3D({ model, marks, pattern, currents }: Props) {
     current.draw();
     // The results and the wires give the curves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currents, showCurrents, wiresKey]);
+  }, [currents, showCurrents, wiresKey, theme]);
 
   // The colours of the legend, from the bottom of the range to the maximum.
   const legend = `linear-gradient(to right, ${[0, 0.25, 0.5, 0.75, 1]
@@ -345,7 +348,14 @@ export function View3D({ model, marks, pattern, currents }: Props) {
   if (unavailable) return <p className="note">{t("Тривимірний вигляд недоступний у цьому браузері.")}</p>;
   return (
     <div className="view3d">
-      <div className="canvas" ref={host} role="img" aria-label={t("Тривимірний вигляд антени")} />
+      <div className="canvas-frame">
+        <div className="canvas" ref={host} role="img" aria-label={t("Тривимірний вигляд антени")} />
+        {/* The mark of the author, faint, over a corner of the view. */}
+        <span className="watermark" aria-hidden="true">
+          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" width="18" height="18" />
+          UR3PKI · cyberdev.space
+        </span>
+      </div>
       <div className="view-bar">
         <span className="axes">
           <span className="axis-x">X</span> <span className="axis-y">Y</span> <span className="axis-z">Z</span>

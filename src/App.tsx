@@ -26,6 +26,8 @@ import { defaultModel, formatPulse, resultKey, sweepKey, type Model } from "./mo
 import type { PatternGrid } from "./pattern";
 import { joinEnds } from "./segmentation";
 import { type Language, N, setLanguage, startingLanguage, t } from "./i18n";
+import { applyTheme, framed, givenLanguage, hostLanguage, hostMessage, hostTheme, startingTheme, storedTheme, storeTheme, systemTheme, type Theme } from "./host";
+import { LanguageMenu, ThemeToggle } from "./components/PageControls";
 
 // The view in space brings a large library: it is loaded after the page.
 const View3D = lazy(() => import("./components/View3D").then((module) => ({ default: module.View3D })));
@@ -41,6 +43,10 @@ function storedModel(): Model {
   }
   return exampleModel();
 }
+
+/** The site of the author, whose mark the page carries. */
+const SITE = "https://cyberdev.space/";
+const LOGO = `${import.meta.env.BASE_URL}logo.svg`;
 
 /** The example, named in the language of the page. */
 const exampleModel = (): Model => ({ ...defaultModel, name: t(defaultModel.name) });
@@ -105,7 +111,7 @@ interface Solved {
 
 export function App() {
   const [lang, setLang] = useState<Language>(() => {
-    const start = startingLanguage();
+    const start = givenLanguage ?? startingLanguage();
     setLanguage(start);
     return start;
   });
@@ -113,6 +119,42 @@ export function App() {
     setLanguage(next);
     setLang(next);
   };
+  const [theme, setTheme] = useState<Theme>(() => {
+    const start = startingTheme();
+    applyTheme(start);
+    return start;
+  });
+  /** Shows the page in a theme; the colours change before anything is drawn anew, the 3D view among it. */
+  const changeTheme = (next: Theme, remember: boolean) => {
+    applyTheme(next);
+    if (remember) storeTheme(next);
+    setTheme(next);
+  };
+  useEffect(() => {
+    // The theme of the system, while the user has chosen none and no site gives one.
+    const scheme = matchMedia("(prefers-color-scheme: dark)");
+    const follow = () => {
+      if (!hostTheme && !storedTheme()) changeTheme(systemTheme(), false);
+    };
+    scheme.addEventListener("change", follow);
+    // The site that holds the page changes its theme or its language.
+    const listen = (event: MessageEvent) => {
+      if (!framed || event.source !== window.parent) return;
+      const message = hostMessage(event.data);
+      if (message && "theme" in message) changeTheme(message.theme, false);
+      if (message && "language" in message) changeLanguage(message.language);
+    };
+    window.addEventListener("message", listen);
+    return () => {
+      scheme.removeEventListener("change", follow);
+      window.removeEventListener("message", listen);
+    };
+    // The handlers only set state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    document.title = `${t("Моделювання антен")} · UR3PKI · cyberdev.space`;
+  }, [lang]);
   const [model, setModel] = useState<Model>(storedModel);
   const [solved, setSolved] = useState<Solved | null>(null);
   const [running, setRunning] = useState(false);
@@ -305,8 +347,15 @@ export function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <h1>{t("Моделювання антен")}</h1>
-          <span>{t("NEC-2 з реальною землею")}</span>
+          <a className="brand-mark" href={SITE} target="_blank" rel="noopener">
+            <img src={LOGO} alt="CyberDevSpace" width="30" height="30" />
+          </a>
+          <div className="brand-text">
+            <h1>{t("Моделювання антен")}</h1>
+            <a className="brand-owner" href={SITE} target="_blank" rel="noopener">
+              UR3PKI · cyberdev.space
+            </a>
+          </div>
         </div>
         <label className="name-field">
           <span className="sr-only">{t("Назва моделі")}</span>
@@ -374,15 +423,9 @@ export function App() {
             </button>
           </Hint>
         </div>
-        <Hint topic="language">
-          <div className="language-switch" role="group" aria-label={t("Мова")}>
-            {(["uk", "en"] as const).map((one) => (
-              <button key={one} type="button" className={lang === one ? "quiet on" : "quiet"} aria-pressed={lang === one} onClick={() => changeLanguage(one)}>
-                {one === "uk" ? "UA" : "EN"}
-              </button>
-            ))}
-          </div>
-        </Hint>
+        {/* A site that gives the page its language or its theme has a switch of its own for it. */}
+        {!hostLanguage && <LanguageMenu language={lang} onChange={changeLanguage} />}
+        {!hostTheme && <ThemeToggle theme={theme} onChange={(next) => changeTheme(next, true)} />}
         <HelpSwitch />
         <Hint topic="pdf">
           <button type="button" onClick={printSheet}>
@@ -532,6 +575,7 @@ export function App() {
           <Card title={t("Вигляд")} className="view-card">
             <Suspense fallback={<p className="note">{t("Завантажую…")}</p>}>
               <View3D
+                theme={theme}
                 model={model}
                 marks={deck.marks}
                 pattern={solved && !stale ? solved.pattern : null}

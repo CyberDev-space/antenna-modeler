@@ -28,6 +28,12 @@ async function openWith(page: Page, model: object) {
   await page.goto("/");
 }
 
+/** Chooses a language in the list of the top bar. */
+async function chooseLanguage(page: Page, name: string) {
+  await page.locator(".language-menu summary").click();
+  await page.locator(".language-menu").getByRole("button", { name }).click();
+}
+
 async function compute(page: Page) {
   await page.getByRole("button", { name: "Розрахувати", exact: true }).click();
   await expect(page.locator(".results-strip .summary")).toBeVisible({ timeout: 30_000 });
@@ -46,7 +52,7 @@ test("computes the example, a dipole near resonance over a real ground", async (
 
 test("switches to English and remembers it", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "EN", exact: true }).click();
+  await chooseLanguage(page, "English");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Antenna modeler");
   await expect(page.getByRole("button", { name: "Compute", exact: true })).toBeVisible();
   await page.reload();
@@ -56,7 +62,7 @@ test("switches to English and remembers it", async ({ page }) => {
 
 test("gives the help in English on an English page", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "EN", exact: true }).click();
+  await chooseLanguage(page, "English");
   await page.locator("legend .hint", { hasText: "Ground" }).hover();
   const popup = page.locator(".help-popup");
   await expect(popup).toBeVisible();
@@ -231,4 +237,28 @@ test("keeps a variant and draws it dashed beside the next one", async ({ page })
   await page.getByRole("button", { name: "Прибрати порівняння" }).click();
   await expect(page.locator(".summary dd.pinned")).toHaveCount(0);
   await expect(page.locator("#panel-sweep .series.pinned")).toHaveCount(0);
+});
+
+test("switches to the dark theme and remembers it", async ({ page }) => {
+  await page.goto("/");
+  const root = page.locator("html");
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await page.getByRole("button", { name: "Темна тема" }).click();
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await page.reload();
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByRole("button", { name: "Темна тема" })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("takes its language and theme from the site that embeds it, which can change the theme later", async ({ page }) => {
+  await page.goto("/?embed=1&lang=en&theme=dark");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Antenna modeler");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  // The site has its own switches: the page shows none.
+  await expect(page.locator(".language-menu")).toHaveCount(0);
+  await expect(page.locator(".theme-toggle")).toHaveCount(0);
+  await page.evaluate(() => window.postMessage({ type: "antenna-modeler:theme", theme: "light" }, "*"));
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  // The mark of the author stays.
+  await expect(page.getByRole("link", { name: "UR3PKI · cyberdev.space" })).toHaveAttribute("href", "https://cyberdev.space/");
 });

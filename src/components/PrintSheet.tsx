@@ -164,10 +164,16 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
   return (
     <article className="print-sheet" aria-hidden="true">
       <header className="sheet-head">
-        <h1>{model.name.trim() || t("Антена")}</h1>
-        <p>
-          {t("Специфікація антени · {date} · antenna-modeler, ядро NEC-2", { date })}
-        </p>
+        <div>
+          <h1>{model.name.trim() || t("Антена")}</h1>
+          <p>
+            {t("Специфікація антени · {date} · antenna-modeler, ядро NEC-2", { date })}
+          </p>
+        </div>
+        <div className="sheet-brand">
+          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" width="22" height="22" />
+          UR3PKI · cyberdev.space
+        </div>
       </header>
 
       <section className="sheet-two">
@@ -512,7 +518,7 @@ export function PrintSheet({ model, deck, results, stale, sweep, matching }: Pro
       )}
 
       <footer className="sheet-foot">
-        {t("Розраховано програмою antenna-modeler (github.com/CyberDev-space/antenna-modeler) на ядрі NEC-2 nec2-rs методом моментів. Розміри — для тонких дротів без ізоляції; перед виготовленням перевірте модель на власній конструкції.")}
+        {t("Розраховано програмою antenna-modeler від UR3PKI (cyberdev.space/radio/antenna-modeler) на ядрі NEC-2 nec2-rs методом моментів. Розміри — для тонких дротів без ізоляції; перед виготовленням перевірте модель на власній конструкції.")}
       </footer>
     </article>
   );

@@ -176,7 +176,21 @@ export const TOPICS_EN: Record<TopicKey, Topic> = {
   language: {
     title: "Language",
     what: "The language of the page: its labels, messages, help and PDF sheet.",
-    how: ["The page starts in Ukrainian for a browser set to Ukrainian and in English for any other.", "The program remembers the choice in this browser."],
+    how: [
+      "The page starts in Ukrainian for a browser set to Ukrainian and in English for any other.",
+      "The program remembers the choice in this browser.",
+      "A site that embeds the program gives it its language, and then this switch is not there.",
+    ],
+    howTitle: "Good to know",
+  },
+  theme: {
+    title: "Theme",
+    what: "The light or the dark theme of the page.",
+    how: [
+      "At first the theme is that of the system and changes with it, until you choose your own.",
+      "The program remembers the choice in this browser. The PDF sheet is always light.",
+      "A site that embeds the program gives it its theme, and then this switch is not there.",
+    ],
     howTitle: "Good to know",
   },
   helpToggle: {
