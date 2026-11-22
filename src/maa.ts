@@ -12,7 +12,9 @@ import {
   type Source,
   type Wire,
 } from "./model";
-import { N, t } from "./i18n";
+import { wavelength } from "./segmentation";
+import { elements } from "./sheet";
+import { decimal as inProse, N, t } from "./i18n";
 
 export interface Imported {
   model: Model;
@@ -360,23 +362,47 @@ export function importMaa(text: string, base: Model): Imported {
   const round = (value: number): number => Number(value.toPrecision(4));
   const sweep = { ...base.sweep, from: round(base.sweep.from * scale), to: round(base.sweep.to * scale) };
   const ground = { ...AVERAGE_GROUND, ...(kind === "real" ? {} : base.ground), kind };
-  return {
-    model: {
-      name,
-      wires,
-      sources,
-      loads,
-      frequency,
-      ground,
-      height,
-      wireConductivity: material?.[1] ?? 0,
-      // MMANA knows no such correction: the choice of the user stays.
-      taperCorrection: base.taperCorrection,
-      reference: reference > 0 ? reference : base.reference,
-      sweep,
-    },
-    notes,
+  const model: Model = {
+    name,
+    wires,
+    sources,
+    loads,
+    frequency,
+    ground,
+    height,
+    wireConductivity: material?.[1] ?? 0,
+    // MMANA knows no such correction: the choice of the user stays.
+    taperCorrection: base.taperCorrection,
+    reference: reference > 0 ? reference : base.reference,
+    sweep,
   };
+  return { model, notes: [...notes, ...frequencyNote(model)] };
+}
+
+/** The longest element of an antenna shorter than this part of a wavelength is too small for its frequency. */
+const SMALL = 0.1;
+
+/** The longest element of a dipole or a Yagi, its reflector, is about this part of a wavelength. */
+const LONGEST = 0.49;
+
+/**
+ * A note for a file whose antenna is far too small for the frequency in it.
+ * MMANA saves the frequency that a model was made at, which may not be the
+ * one it was computed at: a Yagi for 2 m saved at 14.15 MHz computes as
+ * a bunch of short wires. An antenna with coils or capacitors, a small loop
+ * or a short loaded vertical, is small on purpose and gets no note.
+ */
+function frequencyNote(model: Model): string[] {
+  if (model.loads.length > 0 || model.wires.length === 0) return [];
+  const longest = Math.max(...elements({ ...model, height: 0 }).map((row) => row.length));
+  if (!(longest > 0) || longest >= SMALL * wavelength(model.frequency)) return [];
+  const guess = Number(((LONGEST * wavelength(1)) / longest).toPrecision(3));
+  return [
+    t(
+      "Частота у файлі — {frequency} МГц, але розміри антени — для близько {guess} МГц: найдовший елемент, {length} м, був би там напівхвильовим. MMANA зберігає частоту, з якою модель створили, а рахувати її могли на іншій: задайте робочу частоту в полі «Частота, МГц».",
+      { frequency: inProse(String(model.frequency)), guess: inProse(String(guess)), length: inProse(String(Number(longest.toPrecision(3)))) },
+    ),
+  ];
 }
 
 /** A number as MMANA writes it: always with a decimal point. */

@@ -51,6 +51,18 @@ const mixed = [
 ].join("\n");
 
 describe("an antenna file of MMANA", () => {
+  it("says when its antenna is far too small for the frequency in it, and which frequency it fits", () => {
+    // As a colleague sent it: a Yagi for 2 m that MMANA saved with the frequency of a new model.
+    const saved = yagi.replace("Three elements for 2 m", "").replace("145.0", "14.15");
+    const { model, notes } = importMaa(saved, defaultModel);
+    expect(model.frequency).toBe(14.15);
+    expect(notes.at(-1)).toMatch(/^Частота у файлі — 14,15 МГц, але розміри антени — для близько 14\d МГц: найдовший елемент, 1,04 м,/);
+    // At its own frequency, and with a coil that makes it small on purpose, it gets no such note.
+    expect(importMaa(yagi, defaultModel).notes.some((note) => note.startsWith("Частота у файлі"))).toBe(false);
+    const loaded = saved.replace("0,\t1\r\n***Segmentation***", "1,\t1\r\nw1c,\t0,\t0.5,\t0.0,\t0.0\r\n***Segmentation***");
+    expect(importMaa(loaded, defaultModel).notes.some((note) => note.startsWith("Частота у файлі"))).toBe(false);
+  });
+
   it("gives the wires, the source, the frequency and the line", () => {
     const { model, notes } = importMaa(yagi, defaultModel);
     expect(model.name).toBe("Three elements for 2 m");
