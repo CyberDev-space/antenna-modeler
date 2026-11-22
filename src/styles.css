@@ -57,6 +57,8 @@ body {
 }
 
 .am-root {
+  /* Filling the window over another site, the program covers all of it. */
+  min-height: 100%;
   background: var(--page);
   color: var(--ink);
 }
@@ -275,12 +277,14 @@ body {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 18%, transparent);
 }
 
-.theme-toggle {
+.theme-toggle,
+.maximize-toggle {
   display: flex;
   padding: 5px 8px;
 }
 
-.theme-toggle svg {
+.theme-toggle svg,
+.maximize-toggle svg {
   width: 18px;
   height: 18px;
 }

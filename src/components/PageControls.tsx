@@ -117,3 +117,24 @@ export function ThemeToggle({ theme, onChange }: { theme: Theme; onChange: (them
     </Hint>
   );
 }
+
+/** The button that lets the program fill the window over the site around it, and gives the site back. */
+export function MaximizeButton({ maximized, onChange }: { maximized: boolean; onChange: (maximized: boolean) => void }) {
+  const label = maximized ? t("Вийти з повноекранного режиму") : t("На весь екран");
+  return (
+    <Hint topic="maximize">
+      <button type="button" className="quiet maximize-toggle" aria-pressed={maximized} aria-label={label} title={label} onClick={() => onChange(!maximized)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d={maximized ? "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" : "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+    </Hint>
+  );
+}

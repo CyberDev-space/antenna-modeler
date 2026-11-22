@@ -21,7 +21,25 @@ export interface AntennaModelerProps {
    */
   height?: string;
   className?: string;
+  /**
+   * Whether the program may fill the window, over the menu, the sidebar and
+   * the footer of the site, with a button of its own. It then shows its own
+   * switches of language and theme, as those of the site are under it. The
+   * address gets `#full` meanwhile, so a page opened with it starts so.
+   */
+  maximizable?: boolean;
+  /**
+   * The language or the theme that the user chose in the program while it
+   * fills the window, for the site to show itself in it too and give it
+   * back through `language` and `theme`. Without them the program changes
+   * only itself.
+   */
+  onLanguageChange?: (language: Language) => void;
+  onThemeChange?: (theme: Theme) => void;
 }
+
+/** The mark in the address of a program that fills the window. */
+const FULL = "#full";
 
 /**
  * The antenna modeler as a component of another site, built with React. It
@@ -33,7 +51,15 @@ export interface AntennaModelerProps {
  * `.wasm` file of nec2-wasm as an asset, and `?raw` for the stylesheet as
  * text. Vite does all of it by itself.
  */
-export function AntennaModeler({ language, theme, height = "calc(100vh - 5rem)", className }: AntennaModelerProps) {
+export function AntennaModeler({
+  language,
+  theme,
+  height = "calc(100vh - 5rem)",
+  className,
+  maximizable = true,
+  onLanguageChange,
+  onThemeChange,
+}: AntennaModelerProps) {
   const host = useRef<HTMLDivElement>(null);
   const [shadow, setShadow] = useState<ShadowRoot | null>(null);
   useLayoutEffect(() => {
@@ -42,9 +68,39 @@ export function AntennaModeler({ language, theme, height = "calc(100vh - 5rem)",
   }, []);
   // The engine stops with the program, when the site leaves its page.
   useEffect(() => () => stopEngine(), []);
-  const options = useMemo(() => ({ language, theme, embedded: true, print: printSheet }), [language, theme]);
+  const [maximized, setMaximized] = useState(() => maximizable && location.hash === FULL);
+  useEffect(() => {
+    // The address says so, for a reload or a link; the page under the program does not scroll.
+    const url = new URL(location.href);
+    url.hash = maximized ? FULL : url.hash === FULL ? "" : url.hash;
+    if (url.href !== location.href) history.replaceState(history.state, "", url);
+    if (!maximized) return;
+    const root = document.documentElement;
+    const overflow = root.style.overflow;
+    root.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = overflow;
+    };
+  }, [maximized]);
+  const options = useMemo(
+    () => ({
+      language,
+      theme,
+      embedded: true,
+      print: printSheet,
+      maximizable,
+      maximized,
+      onMaximize: setMaximized,
+      onLanguageChange,
+      onThemeChange,
+    }),
+    [language, theme, maximizable, maximized, onLanguageChange, onThemeChange],
+  );
+  const style: Record<string, string | number> = maximized
+    ? { "--am-height": "100dvh", position: "fixed", inset: 0, zIndex: 1000, overflow: "auto" }
+    : { "--am-height": height };
   return (
-    <div ref={host} className={className} style={{ "--am-height": height } as CSSProperties}>
+    <div ref={host} className={className} style={style as CSSProperties}>
       {shadow &&
         createPortal(
           <>

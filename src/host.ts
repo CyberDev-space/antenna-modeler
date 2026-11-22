@@ -30,6 +30,14 @@ export interface PageOptions {
   print?: (sheet: HTMLElement) => void;
   /** The page is in an iframe: the site around it posts its theme and language. */
   listen?: boolean;
+  /** The program may fill the window, over the menu, the sidebar and the footer of the site: it shows a button for it. */
+  maximizable?: boolean;
+  /** It fills the window now: the switches of the site are under it, so it shows its own. */
+  maximized?: boolean;
+  onMaximize?: (maximized: boolean) => void;
+  /** The site takes a language or a theme chosen in the program, to show itself in it too. */
+  onLanguageChange?: (language: Language) => void;
+  onThemeChange?: (theme: Theme) => void;
 }
 
 /** The options of the page on its own, from its address. */

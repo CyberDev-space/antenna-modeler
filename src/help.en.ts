@@ -183,6 +183,16 @@ export const TOPICS_EN: Record<TopicKey, Topic> = {
     ],
     howTitle: "Good to know",
   },
+  maximize: {
+    title: "Full screen",
+    what: "The program takes the whole window, over the menu, the sidebar and the footer of the site it is built into.",
+    how: [
+      "While it fills the window, a list of languages and a theme switch appear in it: those of the site are under it.",
+      "The same button brings back the menu, the sidebar and the footer.",
+      "The address of the page gets `#full`: opened with it, the program starts full screen.",
+    ],
+    howTitle: "Good to know",
+  },
   theme: {
     title: "Theme",
     what: "The light or the dark theme of the page.",

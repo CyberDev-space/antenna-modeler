@@ -445,4 +445,6 @@ export const EN: Record<string, string> = {
   "Мова: {language}": "Language: {language}",
   "Темна тема": "Dark theme",
   "Частота у файлі — {frequency} МГц, але розміри антени — для близько {guess} МГц: найдовший елемент, {length} м, був би там напівхвильовим. MMANA зберігає частоту, з якою модель створили, а рахувати її могли на іншій: задайте робочу частоту в полі «Частота, МГц».": "The frequency in the file is {frequency} MHz, but the antenna is sized for about {guess} MHz: its longest element, {length} m, would be a half wave there. MMANA saves the frequency that a model was made at, and it may have been computed at another one: give the working frequency in the field “Frequency, MHz”.",
+  "На весь екран": "Full screen",
+  "Вийти з повноекранного режиму": "Exit full screen",
 };

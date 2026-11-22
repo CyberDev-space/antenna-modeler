@@ -1,6 +1,6 @@
 {
   "name": "antenna-modeler",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Wire antenna modeling in the browser on the NEC-2 engine nec2-rs",
   "license": "MIT",

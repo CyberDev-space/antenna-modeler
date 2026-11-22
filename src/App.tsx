@@ -28,7 +28,7 @@ import { joinEnds } from "./segmentation";
 import { type Language, N, rememberLanguage, setLanguage, startingLanguage, t } from "./i18n";
 import { applyTheme, hostMessage, startingTheme, storedTheme, storeTheme, systemTheme, type PageOptions, type Theme } from "./host";
 import { LOGO } from "./logo";
-import { LanguageMenu, ThemeToggle } from "./components/PageControls";
+import { LanguageMenu, MaximizeButton, ThemeToggle } from "./components/PageControls";
 
 // The view in space brings a large library: it is loaded after the page.
 const View3D = lazy(() => import("./components/View3D").then((module) => ({ default: module.View3D })));
@@ -451,9 +451,17 @@ export function App({ options = {} }: { options?: PageOptions }) {
             </button>
           </Hint>
         </div>
-        {/* A site that gives the page its language or its theme has a switch of its own for it. */}
-        {!options.language && <LanguageMenu language={lang} onChange={(next) => changeLanguage(next, !embedded)} />}
-        {!options.theme && <ThemeToggle theme={theme} onChange={(next) => changeTheme(next, !embedded)} />}
+        {/* A site that gives the page its language or its theme has a switch of its own for it, unless the program fills the window over it. */}
+        {(!options.language || options.maximized) && (
+          <LanguageMenu
+            language={lang}
+            onChange={(next) => (options.onLanguageChange ? options.onLanguageChange(next) : changeLanguage(next, !embedded))}
+          />
+        )}
+        {(!options.theme || options.maximized) && (
+          <ThemeToggle theme={theme} onChange={(next) => (options.onThemeChange ? options.onThemeChange(next) : changeTheme(next, !embedded))} />
+        )}
+        {options.maximizable && <MaximizeButton maximized={options.maximized ?? false} onChange={(next) => options.onMaximize?.(next)} />}
         <HelpSwitch />
         <Hint topic="pdf">
           <button type="button" onClick={printSheet}>
